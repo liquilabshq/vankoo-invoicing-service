@@ -1,0 +1,6 @@
+@LiquiLabs.Vankoo.Invoicing_HostAddress = http://localhost:5132
+
+GET {{LiquiLabs.Vankoo.Invoicing_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
