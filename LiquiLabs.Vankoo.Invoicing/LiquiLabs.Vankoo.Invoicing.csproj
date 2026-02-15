@@ -7,7 +7,26 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <!-- Paquete de MongoDB para .NET -->
+        <PackageReference Include="MongoDB.Driver" Version="3.6.0" />
+        <!-- MediatR sirve para implementar el patrón Mediator, que facilita la comunicación entre objetos sin que tengan referencias directas entre sí. -->
+        <PackageReference Include="MediatR" Version="14.0.0" />
+        <!-- FluentValidation es una biblioteca de validación para .NET que permite definir reglas de validación de manera fluida y expresiva. -->
+        <PackageReference Include="FluentValidation.AspNetCore" Version="11.3.1" />
+        <!-- Humanizer es una biblioteca que proporciona métodos de extensión para manipular y formatear datos de manera más legible y humana. -->
+        <PackageReference Include="Humanizer" Version="3.0.1" />
+        <!-- Paquete de autenticación JWT para ASP.NET Core -->
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.3" />
+        <!-- Paquete para generar documentación OpenAPI (Swagger) para ASP.NET Core -->
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3"/>
+        <!-- Alternativa a Swashbuckle para generar documentación OpenAPI (Swagger) para ASP.NET Core -->
+        <PackageReference Include="Scalar.AspNetCore" Version="2.12.40" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Application\" />
+      <Folder Include="Domain\" />
+      <Folder Include="Interfaces\" />
     </ItemGroup>
 
 </Project>

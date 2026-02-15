@@ -1,41 +1,48 @@
+using LiquiLabs.Vankoo.Invoicing.Infrastructure.Configuration.Settings;
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization;
+using MongoDB.Bson.Serialization.Serializers;
+using Scalar.AspNetCore;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+// 1. CONFIGURACIÓN DE SERIALIZACIÓN (UUID v7 y Decimales)
+// Esto asegura que los Guids se guarden como UUIDs estándar legibles en Mongo
+BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
+
+// 2. CARGA DE CONFIGURACIONES (IOptions Pattern)
+builder.Services.Configure<DbSettings>(builder.Configuration.GetSection("DbSettings"));
+builder.Services.Configure<TokenSettings>(builder.Configuration.GetSection("TokenSettings"));
+
+// 3. AGREGAR SERVICIOS DE LA APLICACIÓN
+builder.Services.AddRouting(options => options.LowercaseUrls = true);
+builder.Services.AddControllers(); // Necesario para la capa de Interfaces
+builder.Services.AddOpenApi();     // Soporte nativo de OpenAPI de .NET 10
+
+// 4. CONFIGURAR MEDIATR (Escaneando la capa de Application)
+// Reemplaza 'Program' por alguna clase de tu capa Application si prefieres
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// 5. CONFIGURAR EL PIPELINE HTTP
 if (app.Environment.IsDevelopment())
 {
+    // Habilitar el endpoint de OpenAPI (json)
     app.MapOpenApi();
+    
+    // Configurar Scalar como interfaz de pruebas (reemplaza Swagger UI)
+    app.MapScalarApiReference(options =>
+    {
+        options.WithTitle("Invoicing Service API")
+            .WithTheme(ScalarTheme.Moon)
+            .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
+    });
 }
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", () =>
-    {
-        var forecast = Enumerable.Range(1, 5).Select(index =>
-                new WeatherForecast
-                (
-                    DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-                    Random.Shared.Next(-20, 55),
-                    summaries[Random.Shared.Next(summaries.Length)]
-                ))
-            .ToArray();
-        return forecast;
-    })
-    .WithName("GetWeatherForecast");
+// 6. MAPEO DE CONTROLADORES
+app.MapControllers();
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
