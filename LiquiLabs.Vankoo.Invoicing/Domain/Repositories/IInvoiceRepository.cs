@@ -1,18 +1,23 @@
+using LiquiLabs.Vankoo.Invoicing.Domain.Aggregates;
+using LiquiLabs.Vankoo.Invoicing.Domain.ValueObjects;
 
-namespace InvoiceService.Domain.Repositories;
+namespace LiquiLabs.Vankoo.Invoicing.Domain.Repositories;
 
-/// <summary>
-/// Contrato del repositorio de Invoice.
-/// Define las operaciones de persistencia que el dominio necesita.
-/// 
-/// La implementación real (MongoDB) está en Infrastructure Layer.
-/// </summary>
 public interface IInvoiceRepository
 {
     // ========== COMMANDS ==========
     
+    Task SaveAsync(Invoice invoice, CancellationToken cancellationToken = default);
+    
+    Task DeleteAsync(InvoiceId invoiceId, CancellationToken cancellationToken = default);
 
     // ========== QUERIES==========
 
+    Task<Invoice?> GetByIdAsync(InvoiceId invoiceId, CancellationToken cancellationToken = default);
     
+    Task<IReadOnlyList<Invoice>> GetByMypeIdAsync(MypeId mypeId, CancellationToken cancellationToken = default);
+    
+    Task<Invoice?> GetByOcrOperationIdAsync(OcrOperationId  operationId, CancellationToken cancellationToken = default);
+    
+    Task<bool> ExistsAsync(InvoiceId id, CancellationToken cancellationToken = default);
 }
