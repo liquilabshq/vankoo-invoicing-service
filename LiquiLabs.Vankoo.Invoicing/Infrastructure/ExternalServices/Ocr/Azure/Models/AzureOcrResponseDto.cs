@@ -1,5 +1,4 @@
-namespace LiquiLabs.Vankoo.Invoicing.Application.DTOs.Azure;
-
+namespace LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Models;
 
 // DTO para mapear la respuesta de Azure Form Recognizer
 public class AzureOcrResponseDto
