@@ -1,4 +1,11 @@
+using Amazon.Runtime;
+using Amazon.S3;
+using LiquiLabs.Vankoo.Invoicing.Application.Interfaces;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Configuration.Settings;
+using LiquiLabs.Vankoo.Invoicing.Infrastructure.Storage;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
@@ -7,19 +14,43 @@ using Scalar.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 
 // 1. CONFIGURACIÓN DE SERIALIZACIÓN (UUID v7 y Decimales)
-// Esto asegura que los Guids se guarden como UUIDs estándar legibles en Mongo
 BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
 
 // 2. CARGA DE CONFIGURACIONES (IOptions Pattern)
 builder.Services.Configure<DbSettings>(builder.Configuration.GetSection("DbSettings"));
 builder.Services.Configure<TokenSettings>(builder.Configuration.GetSection("TokenSettings"));
+builder.Services.Configure<MinioSettings>(builder.Configuration.GetSection("MinioSettings"));
 
-// 3. AGREGAR SERVICIOS DE LA APLICACIÓN
+// Límite de tamaño de archivo: el framework rechaza requests que superen esto antes de llegar al dominio
+builder.Services.Configure<KestrelServerOptions>(options =>
+{
+    options.Limits.MaxRequestBodySize = 10 * 1024 * 1024; // 10MB
+});
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 10 * 1024 * 1024; // 10MB
+});
+
+// 3. CLIENTE S3 (MinIO)
+builder.Services.AddSingleton<IAmazonS3>(sp =>
+{
+    var settings = sp.GetRequiredService<IOptions<MinioSettings>>().Value;
+    var credentials = new BasicAWSCredentials(settings.AccessKey, settings.SecretKey);
+    var config = new AmazonS3Config
+    {
+        ServiceURL = $"{(settings.UseSSL ? "https" : "http")}://{settings.Endpoint}",
+        ForcePathStyle = true  // Requerido por MinIO
+    };
+    return new AmazonS3Client(credentials, config);
+});
+builder.Services.AddScoped<IStorageService, MinioStorageService>();
+
+// 4. AGREGAR SERVICIOS DE LA APLICACIÓN
 builder.Services.AddRouting(options => options.LowercaseUrls = true);
 builder.Services.AddControllers(); // Necesario para la capa de Interfaces
 builder.Services.AddOpenApi();     // Soporte nativo de OpenAPI de .NET 10
 
-// 4. CONFIGURAR MEDIATR (Escaneando la capa de Application)
+// 5. CONFIGURAR MEDIATR (Escaneando la capa de Application)
 // Reemplaza 'Program' por alguna clase de tu capa Application si prefieres
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
 
