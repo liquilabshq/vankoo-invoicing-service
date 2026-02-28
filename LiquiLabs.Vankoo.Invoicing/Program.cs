@@ -1,4 +1,13 @@
+using FluentValidation;
+using LiquiLabs.Vankoo.Invoicing.Application.Behaviors;
+using LiquiLabs.Vankoo.Invoicing.Application.Interfaces;
+using LiquiLabs.Vankoo.Invoicing.Domain.Repositories;
+using LiquiLabs.Vankoo.Invoicing.Infrastructure.Brokers.Kafka;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Configuration.Settings;
+using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure;
+using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Mappers;
+using LiquiLabs.Vankoo.Invoicing.Infrastructure.Persistence.MongoDB.Contexts;
+using LiquiLabs.Vankoo.Invoicing.Infrastructure.Persistence.MongoDB.Repositories;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
@@ -13,15 +22,36 @@ BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard
 // 2. CARGA DE CONFIGURACIONES (IOptions Pattern)
 builder.Services.Configure<DbSettings>(builder.Configuration.GetSection("DbSettings"));
 builder.Services.Configure<TokenSettings>(builder.Configuration.GetSection("TokenSettings"));
+builder.Services.Configure<AzureOcrSettings>(builder.Configuration.GetSection("AzureOcrSettings")); // Azure OCR
+builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings")); // Kafka
+
 
 // 3. AGREGAR SERVICIOS DE LA APLICACIÓN
 builder.Services.AddRouting(options => options.LowercaseUrls = true);
 builder.Services.AddControllers(); // Necesario para la capa de Interfaces
 builder.Services.AddOpenApi();     // Soporte nativo de OpenAPI de .NET 10
 
-// 4. CONFIGURAR MEDIATR (Escaneando la capa de Application)
-// Reemplaza 'Program' por alguna clase de tu capa Application si prefieres
-builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
+// 4. Registrar MediatR y el Behavior de validación
+builder.Services.AddMediatR(config => {
+    // Busca todos los Comandos/Handlers en este proyecto
+    config.RegisterServicesFromAssembly(typeof(Program).Assembly);
+    
+    // Conecta el ValidationBehavior al flujo (Pipeline)
+    config.AddOpenBehavior(typeof(ValidationBehavior<,>));
+});
+
+// Registrar FluentValidation
+builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
+
+// Registrar el Repositorio de MongoDB
+builder.Services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+
+// Registrar los Servicios de Dominio/Aplicación
+builder.Services.AddScoped<IOcrService, AzureOcrService>();
+builder.Services.AddScoped<IStorageService, MinioStorageService>();
+builder.Services.AddSingleton<AzureOcrMapper>();
+builder.Services.AddSingleton<MongoContext>();
+builder.Services.AddSingleton<IEventBus, KafkaEventBus>();
 
 var app = builder.Build();
 
