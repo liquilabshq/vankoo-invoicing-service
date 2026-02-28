@@ -9,10 +9,7 @@ using Microsoft.Extensions.Options;
 
 namespace LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure;
 
-/// <summary>
-/// Implementación del servicio de OCR usando Azure Form Recognizer.
-/// Convierte PDFs/imágenes de facturas en datos estructurados.
-/// </summary>
+
 public class AzureOcrService : IOcrService
 {
     private readonly DocumentAnalysisClient _client;
@@ -35,10 +32,9 @@ public class AzureOcrService : IOcrService
         _client = new DocumentAnalysisClient(new Uri(settings1.Endpoint), credential);
     }
 
-    /// <summary>
     /// Extrae datos de forma SÍNCRONA (espera el resultado completo).
-    /// Usar solo para facturas pequeñas (< 2MB, < 5 páginas).
-    /// </summary>
+    /// Usar solo para facturas pequeñas (< 2MB, < 5 páginas)
+    
     public async Task<OcrExtractionResult> ExtractInvoiceDataAsync(
         Stream documentStream,
         CancellationToken cancellationToken = default)
@@ -48,8 +44,6 @@ public class AzureOcrService : IOcrService
 
         try
         {
-            // Podemos usar el el AnalyzeDocumentFromUriAsync para pruebas (TENER EN CUENTA)
-            
             // Usamos AnalyzeDocumentAsync con el Stream
             var operation = await _client.AnalyzeDocumentAsync(
                 WaitUntil.Completed,
@@ -100,11 +94,9 @@ public class AzureOcrService : IOcrService
         }
     }
 
-    /// <summary>
     /// Inicia el análisis de forma ASÍNCRONA y devuelve un operationId.
     /// Usar para facturas grandes (> 2MB, > 5 páginas).
-    /// Después hacer polling con IsAnalysisCompletedAsync() y GetAnalysisResultAsync().
-    /// </summary>
+
     public async Task<OcrOperationId> StartAnalysisAsync(
         Stream documentStream,
         CancellationToken cancellationToken = default)
@@ -153,9 +145,8 @@ public class AzureOcrService : IOcrService
         }
     }
 
-    /// <summary>
     /// Verifica si el análisis ha completado.
-    /// </summary>
+    
     public async Task<bool> IsAnalysisCompletedAsync(
         OcrOperationId operationId,
         CancellationToken cancellationToken = default)
@@ -213,10 +204,10 @@ public class AzureOcrService : IOcrService
         }
     }
 
-    /// <summary>
+    
     /// Obtiene el resultado de un análisis previamente iniciado.
     /// Retorna null si el análisis aún no ha completado.
-    /// </summary>
+    
     public async Task<OcrExtractionResult?> GetAnalysisResultAsync(
         OcrOperationId operationId,
         CancellationToken cancellationToken = default)
