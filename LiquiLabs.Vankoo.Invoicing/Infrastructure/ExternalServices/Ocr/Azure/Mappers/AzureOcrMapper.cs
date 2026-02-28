@@ -30,7 +30,7 @@ public class AzureOcrMapper
         var issueDate = GetDateField(fields, "InvoiceDate") ?? DateTime.UtcNow;
         var dueDate = GetDateField(fields, "DueDate") ?? issueDate.AddDays(30);
 
-        var payerRuc = GetStringField(fields, "CustomerTaxId") ?? "00000000000";
+        var payerRuc = GetStringField(fields, "CustomerTaxId") ?? "10000000000";
         var payerName = GetStringField(fields, "CustomerName") ?? "Unknown Customer";
         var payerAddress = GetStringField(fields, "CustomerAddress");
 
