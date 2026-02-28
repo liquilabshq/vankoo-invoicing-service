@@ -1,3 +1,4 @@
+using LiquiLabs.Vankoo.Invoicing.Domain.Exceptions;
 using LiquiLabs.Vankoo.Invoicing.Domain.ValueObjects;
 
 namespace LiquiLabs.Vankoo.Invoicing.Domain.Aggregates;

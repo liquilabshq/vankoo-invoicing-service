@@ -1,3 +1,5 @@
+using LiquiLabs.Vankoo.Invoicing.Domain.ValueObjects;
+
 namespace LiquiLabs.Vankoo.Invoicing.Application.Interfaces;
 
 public interface IStorageService

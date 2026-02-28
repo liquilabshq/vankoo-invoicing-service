@@ -1,3 +1,6 @@
+using Amazon.S3;
+using Amazon.S3.Model;
+using Amazon.S3.Util;
 using LiquiLabs.Vankoo.Invoicing.Application.Interfaces;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Configuration.Settings;
 using Microsoft.Extensions.Options;
@@ -11,10 +14,14 @@ public class MinioStorageService : IStorageService
     private readonly string _bucketName;
 
     public MinioStorageService(IAmazonS3 s3Client, IOptions<MinioSettings> options)
-    public Task<Stream> GetFileStreamAsync(FileKey fileKey, CancellationToken cancellationToken = default)
     {
         _s3Client = s3Client;
         _bucketName = options.Value.BucketName;
+    }
+    public Task<Stream> GetFileStreamAsync(FileKey fileKey, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException(
+            "Pendiente: implementar la descarga de archivos desde MinIO/S3.");
     }
 
     public async Task UploadAsync(string key, Stream content, string contentType, CancellationToken ct = default)
