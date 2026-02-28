@@ -1,4 +1,5 @@
 using LiquiLabs.Vankoo.Invoicing.Application.Interfaces;
+using LiquiLabs.Vankoo.Invoicing.Domain.Events;
 using LiquiLabs.Vankoo.Invoicing.Domain.Exceptions;
 using LiquiLabs.Vankoo.Invoicing.Domain.Repositories;
 using LiquiLabs.Vankoo.Invoicing.Domain.ValueObjects;
@@ -11,17 +12,20 @@ public class ProcessOcrSynchronouslyHandler : IRequestHandler<ProcessOcrSynchron
     private readonly IInvoiceRepository _invoiceRepository;
     private readonly IOcrService _ocrService;
     private readonly IStorageService _storageService;
+    private readonly IMediator _mediator;
     private readonly ILogger<ProcessOcrSynchronouslyHandler> _logger;
 
     public ProcessOcrSynchronouslyHandler(
         IInvoiceRepository invoiceRepository, 
         IOcrService ocrService, 
         IStorageService storageService, 
+        IMediator mediator,
         ILogger<ProcessOcrSynchronouslyHandler> logger)
     {
         _invoiceRepository = invoiceRepository; 
         _ocrService = ocrService;
         _storageService = storageService; 
+        _mediator = mediator;
         _logger = logger;
     }
 
@@ -42,6 +46,12 @@ public class ProcessOcrSynchronouslyHandler : IRequestHandler<ProcessOcrSynchron
             
             invoice.RegisterOcrResults(result);
             await _invoiceRepository.SaveAsync(invoice, cancellationToken);
+            
+            // Publicar Domain Event -> MediatR lo enruta al InvoiceOcrProcessedEventHandler → Kafka
+            await _mediator.Publish(
+                new InvoiceOcrProcessedDomainEvent(invoice),
+                cancellationToken);
+            
         }
         catch (Exception ex)
         {
