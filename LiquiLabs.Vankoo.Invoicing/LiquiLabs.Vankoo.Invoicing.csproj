@@ -8,6 +8,8 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Azure.AI.FormRecognizer" Version="4.1.0" />
+        <PackageReference Include="Confluent.Kafka" Version="2.13.1" />
         <!-- Paquete de MongoDB para .NET -->
         <PackageReference Include="AWSSDK.S3" Version="4.0.18.6" />
         <PackageReference Include="MongoDB.Driver" Version="3.6.0" />
@@ -20,7 +22,7 @@
         <!-- Paquete de autenticación JWT para ASP.NET Core -->
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.3" />
         <!-- Paquete para generar documentación OpenAPI (Swagger) para ASP.NET Core -->
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3"/>
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3" />
         <!-- Alternativa a Swashbuckle para generar documentación OpenAPI (Swagger) para ASP.NET Core -->
         <PackageReference Include="Scalar.AspNetCore" Version="2.12.40" />
     </ItemGroup>
