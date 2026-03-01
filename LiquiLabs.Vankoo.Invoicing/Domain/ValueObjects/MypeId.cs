@@ -13,6 +13,8 @@ public sealed record MypeId
     }
 
     public static MypeId Of(string value) => new(value);
+    
+    public static MypeId NewId() => new(Guid.NewGuid().ToString());
 
     public override string ToString() => Value;
 }
