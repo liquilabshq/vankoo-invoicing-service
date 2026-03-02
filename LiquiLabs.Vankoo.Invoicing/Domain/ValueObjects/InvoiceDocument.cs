@@ -1,4 +1,4 @@
-using LiquiLabs.Vankoo.Invoicing.Domain.Exceptions;
+using LiquiLabs.Vankoo.Invoicing.Shared.Domain.Exceptions;
 
 namespace LiquiLabs.Vankoo.Invoicing.Domain.ValueObjects;
 
@@ -17,10 +17,10 @@ public sealed record InvoiceDocument
             throw new ArgumentException("File name cannot be empty", nameof(originalName));
 
         if (contentType != "application/pdf")
-            throw new InvoiceDomainException("Invoice must be a PDF file");
+            throw new InvalidValueException("INVALID_CONTENT_TYPE", "Invoice must be a PDF file");
 
         if (fileSizeBytes <= 0)
-            throw new InvoiceDomainException("File size must be greater than zero");
+            throw new InvalidValueException("INVALID_FILE_SIZE", "File size must be greater than zero");
 
         return new InvoiceDocument
         {
