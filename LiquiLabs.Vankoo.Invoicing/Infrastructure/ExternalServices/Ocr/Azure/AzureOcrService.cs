@@ -4,7 +4,7 @@ using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Exceptions;
 using LiquiLabs.Vankoo.Invoicing.Application.Interfaces;
 using LiquiLabs.Vankoo.Invoicing.Domain.ValueObjects;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Configuration.Settings;
-using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Mappers;
+using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure.Mappers;
 using Microsoft.Extensions.Options;
 
 namespace LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure;
@@ -60,37 +60,18 @@ public class AzureOcrService : IOcrService
             // Mapear respuesta de Azure → Domain Value Objects
             return _mapper.MapToOcrExtractionResult(result);
         }
-        catch (RequestFailedException ex) when (ex.Status == 400)
+        catch (RequestFailedException ex) 
         {
-            _logger.LogError(ex, "Azure OCR rejected the file (400 Bad Request).");
-            throw new OcrProcessingException("El archivo no es válido o no se puede procesar.", ex);
-        }
-        catch (RequestFailedException ex) when (ex.Status == 429)
-        {
-            _logger.LogError(
-                ex,
-                "Azure OCR rate limit exceeded (429 Too Many Requests)");
+            if (ex.Status == 429) 
+                throw new OcrProcessingException("Límite de peticiones a Azure excedido.", OcrErrorCode.RateLimitExceeded, isTransient: true, ex);
             
-            throw new OcrProcessingException(
-                "Servicio de OCR temporalmente sobrecargado. Intente nuevamente en unos segundos.",
-                ex);
-        }
-        catch (RequestFailedException ex)
-        {
-            _logger.LogError(
-                ex,
-                "Azure Form Recognizer request failed: {StatusCode} - {Message}",
-                ex.Status,
-                ex.Message);
+            if (ex.Status == 400 || ex.Status == 415) 
+                throw new OcrInvalidDocumentException("El documento no es válido, está borroso o tiene un formato no soportado.", ex);
             
-            throw new OcrProcessingException(
-                $"Error al procesar el documento con Azure OCR: {ex.Message}",
-                ex);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unexpected error during OCR processing");
-            throw new OcrProcessingException("Error inesperado al procesar el OCR", ex);
+            if (ex.Status >= 500) 
+                throw new OcrProcessingException("El servicio de OCR de Azure está fallando.", OcrErrorCode.ServiceError, isTransient: true, ex);
+
+            throw new OcrProcessingException($"Fallo desconocido en OCR: {ex.Message}", OcrErrorCode.Unknown, isTransient: false, ex);
         }
     }
 
@@ -121,27 +102,18 @@ public class AzureOcrService : IOcrService
 
             return OcrOperationId.Of(operationId);
         }
-        catch (RequestFailedException ex) when (ex.Status == 400)
-        {
-            _logger.LogError(ex, "Azure OCR rejected the file (400 Bad Request).");
-            throw new OcrProcessingException("El archivo no es válido o no se puede procesar.", ex);
-        }
         catch (RequestFailedException ex)
         {
-            _logger.LogError(
-                ex,
-                "Failed to start Azure OCR analysis: {StatusCode} - {Message}",
-                ex.Status,
-                ex.Message);
+            if (ex.Status == 429) 
+                throw new OcrProcessingException("Límite de peticiones a Azure excedido.", OcrErrorCode.RateLimitExceeded, isTransient: true, ex);
             
-            throw new OcrProcessingException(
-                $"No se pudo iniciar el análisis OCR: {ex.Message}",
-                ex);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Unexpected error starting OCR analysis");
-            throw new OcrProcessingException("Error al iniciar el análisis OCR", ex);
+            if (ex.Status == 400 || ex.Status == 415) 
+                throw new OcrInvalidDocumentException("El archivo no es válido o no se puede procesar.", ex);
+
+            if (ex.Status >= 500) 
+                throw new OcrProcessingException("El servicio de OCR de Azure está fallando.", OcrErrorCode.ServiceError, isTransient: true, ex);
+
+            throw new OcrProcessingException($"No se pudo iniciar el análisis OCR: {ex.Message}", OcrErrorCode.Unknown, isTransient: false, ex);
         }
     }
 
@@ -176,30 +148,12 @@ public class AzureOcrService : IOcrService
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
-            _logger.LogWarning(
-                ex,
-                "Operation {OperationId} not found (404). It may have expired.",
-                operationId.Value);
-            
+            _logger.LogWarning(ex, "Operation {OperationId} not found (404). It may have expired.", operationId.Value);
             return false;
         }
         catch (RequestFailedException ex)
         {
-            _logger.LogError(
-                ex,
-                "Failed to check status for operation {OperationId}: {StatusCode}",
-                operationId.Value,
-                ex.Status);
-            
-            return false;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Unexpected error checking operation status: {OperationId}",
-                operationId.Value);
-            
+            _logger.LogError(ex, "Failed to check status for operation {OperationId}: {StatusCode}", operationId.Value, ex.Status);
             return false;
         }
     }
@@ -256,37 +210,14 @@ public class AzureOcrService : IOcrService
             // Mapear respuesta de Azure → Domain Value Objects
             return _mapper.MapToOcrExtractionResult(result);
         }
-        catch (RequestFailedException ex) when (ex.Status == 404)
-        {
-            _logger.LogWarning(
-                ex,
-                "Operation {OperationId} not found (404)",
-                operationId.Value);
-            
-            throw new OcrProcessingException(
-                "La operación de OCR no existe o ha expirado. Intente subir la factura nuevamente.",
-                ex);
-        }
         catch (RequestFailedException ex)
         {
-            _logger.LogError(
-                ex,
-                "Failed to get OCR result for operation {OperationId}: {StatusCode}",
-                operationId.Value,
-                ex.Status);
-            
-            throw new OcrProcessingException(
-                $"No se pudo obtener el resultado del OCR: {ex.Message}",
-                ex);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(
-                ex,
-                "Unexpected error getting OCR result for operation {OperationId}",
-                operationId.Value);
-            
-            throw new OcrProcessingException("Error al obtener el resultado del OCR", ex);
+            if (ex.Status == 404)
+            {
+                throw new OcrOperationNotFoundException("La operación de OCR no existe o ha expirado. Intente subir la factura nuevamente.", ex);
+            }
+
+            throw new OcrProcessingException($"No se pudo obtener el resultado del OCR: {ex.Message}", OcrErrorCode.Unknown, isTransient: false, ex);
         }
     }
 }
