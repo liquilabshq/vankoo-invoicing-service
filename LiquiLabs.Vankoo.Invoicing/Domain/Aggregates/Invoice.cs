@@ -1,5 +1,6 @@
 using LiquiLabs.Vankoo.Invoicing.Domain.Exceptions;
 using LiquiLabs.Vankoo.Invoicing.Domain.ValueObjects;
+using LiquiLabs.Vankoo.Invoicing.Shared.Domain.Exceptions;
 
 namespace LiquiLabs.Vankoo.Invoicing.Domain.Aggregates;
 
@@ -67,7 +68,7 @@ public sealed class Invoice
         ArgumentNullException.ThrowIfNull(reason);
         
         if (!CanBeRejected())
-            throw new InvalidInvoiceStateException($"Cannot reject invoice in status {Status}");
+            throw new InvalidInvoiceStateException(Status, "reject");
 
         RejectionReason = reason;
         Status = InvoiceStatus.REJECTED;
@@ -94,7 +95,8 @@ public sealed class Invoice
         // Validar consistencia entre el total extraído y la suma de los items
         if (!result.HasConsistentTotal())
         {
-            throw new InvoiceDomainException("The sum of the invoice line items does not match the total amount extracted.");
+            throw new InvalidValueException("INCONSISTENT_INVOICE_TOTAL",
+                "The sum of the invoice line items does not match the total amount extracted.");
         }
         
         // Asignar los datos extraídos al invoice
