@@ -2,6 +2,7 @@ using FluentValidation;
 using LiquiLabs.Vankoo.Invoicing.Application.Behaviors;
 using LiquiLabs.Vankoo.Invoicing.Application.Interfaces;
 using LiquiLabs.Vankoo.Invoicing.Domain.Repositories;
+using LiquiLabs.Vankoo.Invoicing.Shared.Infrastructure.Web;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Brokers.Kafka;
 using Amazon.Runtime;
 using Amazon.S3;
@@ -11,7 +12,7 @@ using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Mappers;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Persistence.MongoDB.Contexts;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Persistence.MongoDB.Repositories;
-using LiquiLabs.Vankoo.Invoicing.Infrastructure.Storage;
+using LiquiLabs.Vankoo.Invoicing.Infrastructure.Storage.MinIO;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Options;
@@ -59,6 +60,8 @@ builder.Services.AddSingleton<IAmazonS3>(sp =>
 builder.Services.AddScoped<IStorageService, MinioStorageService>();
 
 // 4. AGREGAR SERVICIOS DE LA APLICACIÓN
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
 builder.Services.AddRouting(options => options.LowercaseUrls = true);
 builder.Services.AddControllers(); // Necesario para la capa de Interfaces
 builder.Services.AddOpenApi();     // Soporte nativo de OpenAPI de .NET 10
@@ -102,6 +105,7 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+app.UseExceptionHandler();
 app.UseHttpsRedirection();
 
 // 6. MAPEO DE CONTROLADORES
