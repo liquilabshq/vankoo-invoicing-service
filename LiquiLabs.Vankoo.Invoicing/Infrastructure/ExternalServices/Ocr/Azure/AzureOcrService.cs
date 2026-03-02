@@ -1,6 +1,6 @@
 using Azure;
 using Azure.AI.FormRecognizer.DocumentAnalysis;
-using LiquiLabs.Vankoo.Invoicing.Application.Exceptions;
+using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Exceptions;
 using LiquiLabs.Vankoo.Invoicing.Application.Interfaces;
 using LiquiLabs.Vankoo.Invoicing.Domain.ValueObjects;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Configuration.Settings;
