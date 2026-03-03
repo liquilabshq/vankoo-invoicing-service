@@ -1,6 +1,6 @@
 using OcrErrorCode = LiquiLabs.Vankoo.Invoicing.Shared.Infrastructure.Exceptions.OcrErrorCode;
 
-namespace LiquiLabs.Vankoo.Invoicing.Application.Exceptions;
+namespace LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Exceptions;
 
 public class OcrInvalidDocumentException : OcrProcessingException
 {

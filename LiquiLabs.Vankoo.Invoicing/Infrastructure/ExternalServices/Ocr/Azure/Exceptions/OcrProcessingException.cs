@@ -1,8 +1,9 @@
+using LiquiLabs.Vankoo.Invoicing.Shared.Infrastructure.Exceptions;
 using OcrErrorCode = LiquiLabs.Vankoo.Invoicing.Shared.Infrastructure.Exceptions.OcrErrorCode;
 
-namespace LiquiLabs.Vankoo.Invoicing.Application.Exceptions;
+namespace LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Exceptions;
 
-public class OcrProcessingException : LiquiLabs.Vankoo.Invoicing.Shared.Infrastructure.Exceptions.InfrastructureException
+public class OcrProcessingException : InfrastructureException
 {
     public new OcrErrorCode ErrorCode { get; }
     public bool IsTransient { get; }
