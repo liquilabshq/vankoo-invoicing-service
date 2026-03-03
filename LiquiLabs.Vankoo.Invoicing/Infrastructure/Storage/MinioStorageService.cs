@@ -10,12 +10,12 @@ namespace LiquiLabs.Vankoo.Invoicing.Infrastructure.Storage;
 
 public class MinioStorageService : IStorageService
 {
-    //private readonly IAmazonS3 _s3Client;
+    private readonly IAmazonS3 _s3Client;
     private readonly string _bucketName;
 
-    public MinioStorageService(IOptions<MinioSettings> options)
+    public MinioStorageService(IAmazonS3 s3Client, IOptions<MinioSettings> options)
     {
-        //_s3Client = s3Client;
+        _s3Client = s3Client;
         _bucketName = options.Value.BucketName;
     }
     public Task<Stream> GetFileStreamAsync(FileKey fileKey, CancellationToken cancellationToken = default)
