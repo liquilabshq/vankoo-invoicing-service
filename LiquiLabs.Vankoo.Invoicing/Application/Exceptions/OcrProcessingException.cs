@@ -1,35 +1,35 @@
+using OcrErrorCode = LiquiLabs.Vankoo.Invoicing.Shared.Infrastructure.Exceptions.OcrErrorCode;
+
 namespace LiquiLabs.Vankoo.Invoicing.Application.Exceptions;
 
-public class OcrProcessingException : Exception
+public class OcrProcessingException : LiquiLabs.Vankoo.Invoicing.Shared.Infrastructure.Exceptions.InfrastructureException
 {
-    public OcrErrorCode ErrorCode { get; }
+    public new OcrErrorCode ErrorCode { get; }
     public bool IsTransient { get; }
 
     public OcrProcessingException(string message)
-        : base(message)
+        : base("OCR_ERROR", message)
     {
         ErrorCode = OcrErrorCode.Unknown;
         IsTransient = false;
     }
 
     public OcrProcessingException(string message, Exception innerException)
-        : base(message, innerException)
+        : base("OCR_ERROR", message, innerException)
     {
         ErrorCode = OcrErrorCode.Unknown;
         IsTransient = false;
     }
 
-    // ¡Cambiado de protected a public!
     public OcrProcessingException(string message, OcrErrorCode errorCode, bool isTransient)
-        : base(message)
+        : base(errorCode.ToString().ToUpper(), message)
     {
         ErrorCode = errorCode;
         IsTransient = isTransient;
     }
 
-    // ¡Cambiado de protected a public!
     public OcrProcessingException(string message, OcrErrorCode errorCode, bool isTransient, Exception? innerException)
-        : base(message, innerException)
+        : base(errorCode.ToString().ToUpper(), message, innerException)
     {
         ErrorCode = errorCode;
         IsTransient = isTransient;

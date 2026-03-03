@@ -1,11 +1,14 @@
-using OcrErrorCode = LiquiLabs.Vankoo.Invoicing.Application.Exceptions.OcrErrorCode;
-
 namespace LiquiLabs.Vankoo.Invoicing.Application.Exceptions;
 
-public class OcrOperationNotFoundException : OcrProcessingException
+public class OcrOperationNotFoundException : LiquiLabs.Vankoo.Invoicing.Shared.Domain.Exceptions.EntityNotFoundException
 {
-    public OcrOperationNotFoundException(string message, Exception? innerException = null)
-        : base(message, OcrErrorCode.OperationNotFound, isTransient: false, innerException)
+    public OcrOperationNotFoundException(string message)
+        : base("OCR_OPERATION_NOT_FOUND", message)
+    {
+    }
+
+    public OcrOperationNotFoundException(string message, Exception innerException)
+        : base("OCR_OPERATION_NOT_FOUND", message, innerException)
     {
     }
 }

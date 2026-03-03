@@ -19,10 +19,6 @@ public sealed record InvoiceLineItem
         if (quantity <= 0)
             throw new ArgumentException("Quantity must be greater than zero", nameof(quantity));
 
-        var expectedSubtotal = unitPrice.Multiply(quantity);
-        if (Math.Abs(subtotal.Amount - expectedSubtotal.Amount) > 0.02m)
-            throw new ArgumentException("Subtotal does not match quantity * unitPrice");
-
         Description = description.Trim();
         Quantity = quantity;
         UnitPrice = unitPrice;
@@ -31,6 +27,12 @@ public sealed record InvoiceLineItem
 
     public static InvoiceLineItem Create(string description, decimal quantity, Money unitPrice)
     {
+        if (string.IsNullOrWhiteSpace(description))
+            throw new ArgumentException("Description cannot be empty", nameof(description));
+
+        if (quantity <= 0)
+            throw new ArgumentException("Quantity must be greater than zero", nameof(quantity));
+
         var subtotal = unitPrice.Multiply(quantity);
         return new InvoiceLineItem(description, quantity, unitPrice, subtotal);
     }
@@ -40,7 +42,13 @@ public sealed record InvoiceLineItem
         decimal quantity,
         Money unitPrice,
         Money subtotal)
-        => new(description, quantity, unitPrice, subtotal);
+    {
+        var safeUnitPrice = quantity > 0 && unitPrice.Amount == 0
+            ? subtotal.Divide(quantity)
+            : unitPrice;
+
+        return new InvoiceLineItem(description, quantity, safeUnitPrice, subtotal);
+    }
 
     public Money CalculateTotal() => Subtotal;
 }

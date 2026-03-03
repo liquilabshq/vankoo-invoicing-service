@@ -39,7 +39,18 @@ public sealed record Money
 
         return new Money(Amount * factor, Currency);
     }
+    
+    public Money Divide(decimal divisor)
+    {
+        if (divisor == 0)
+            throw new DivideByZeroException("Cannot divide money by zero.");
 
+        if (divisor < 0)
+            throw new ArgumentException("Divisor cannot be negative", nameof(divisor));
+
+        return new Money(Amount / divisor, Currency);
+    }
+    
     public bool IsGreaterThan(Money other)
     {
         EnsureSameCurrency(other);
@@ -60,6 +71,6 @@ public sealed record Money
             throw new InvalidOperationException(
                 $"Cannot operate between {Currency} and {other.Currency}");
     }
-
+    
     public override string ToString() => $"{Amount:N2} {Currency}";
 }

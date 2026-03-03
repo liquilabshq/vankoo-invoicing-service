@@ -93,11 +93,11 @@ public sealed class Invoice
         }
         
         // Validar consistencia entre el total extraído y la suma de los items
-        if (!result.HasConsistentTotal())
-        {
-            throw new InvalidValueException("INCONSISTENT_INVOICE_TOTAL",
-                "The sum of the invoice line items does not match the total amount extracted.");
-        }
+        // if (!result.HasConsistentTotal())
+        // {
+        //     throw new InvalidValueException("INCONSISTENT_INVOICE_TOTAL",
+        //         "The sum of the invoice line items does not match the total amount extracted.");
+        // }
         
         // Asignar los datos extraídos al invoice
         PayerData = result.PayerData;
@@ -110,6 +110,7 @@ public sealed class Invoice
         
         // Actualizar el estado a DATA_EXTRACTED
         Status = InvoiceStatus.DATA_EXTRACTED;
+        UpdatedAt = DateTime.UtcNow;
     }
     
     private bool CanBeRejected()
