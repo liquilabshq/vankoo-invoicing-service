@@ -1,7 +1,7 @@
 using LiquiLabs.Vankoo.Invoicing.Shared.Infrastructure.Exceptions;
 using OcrErrorCode = LiquiLabs.Vankoo.Invoicing.Shared.Infrastructure.Exceptions.OcrErrorCode;
 
-namespace LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Exceptions;
+namespace LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure.Exceptions;
 
 public class OcrProcessingException : InfrastructureException
 {

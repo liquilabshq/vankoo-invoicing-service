@@ -1,4 +1,4 @@
-namespace LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Exceptions;
+namespace LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure.Exceptions;
 
 public class OcrOperationNotFoundException : LiquiLabs.Vankoo.Invoicing.Shared.Domain.Exceptions.EntityNotFoundException
 {

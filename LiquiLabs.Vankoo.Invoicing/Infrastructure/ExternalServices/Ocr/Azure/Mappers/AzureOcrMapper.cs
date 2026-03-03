@@ -2,10 +2,10 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using Azure.AI.FormRecognizer.DocumentAnalysis;
 using LiquiLabs.Vankoo.Invoicing.Domain.ValueObjects;
-using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Exceptions;
+using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure.Exceptions;
 using OcrErrorCode = LiquiLabs.Vankoo.Invoicing.Shared.Infrastructure.Exceptions.OcrErrorCode;
 
-namespace LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Mappers;
+namespace LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure.Mappers;
 
 public class AzureOcrMapper
 {

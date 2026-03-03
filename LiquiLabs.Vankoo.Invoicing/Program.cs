@@ -8,7 +8,7 @@ using Amazon.S3;
 using LiquiLabs.Vankoo.Invoicing.Application.Interfaces;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Configuration.Settings;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure;
-using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Mappers;
+using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure.Mappers;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Persistence.MongoDB.Contexts;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Persistence.MongoDB.Repositories;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Storage;
