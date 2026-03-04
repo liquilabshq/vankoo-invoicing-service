@@ -18,14 +18,12 @@ public class MinioStorageService : IStorageService
         _s3Client = s3Client;
         _bucketName = options.Value.BucketName;
     }
-    public Task<Stream> GetFileStreamAsync(FileKey fileKey, CancellationToken cancellationToken = default)
-    {
-        var fileStream = File.OpenRead(@"C:\Users\DANIEL\Downloads\factura-oficial.pdf");
-        return Task.FromResult<Stream>(fileStream);
-    }
+    public Task<Stream> GetFileStreamAsync(FileKey fileKey, CancellationToken ct = default)
+        => DownloadAsync(fileKey.Value, ct);
 
     public async Task UploadAsync(string key, Stream content, string contentType, CancellationToken ct = default)
     {
+        await EnsureBucketExistsAsync(ct);
 
         var request = new PutObjectRequest
         {
@@ -35,12 +33,19 @@ public class MinioStorageService : IStorageService
             ContentType = contentType
         };
 
-        throw new NotImplementedException("S3/MinIO deshabilitado temporalmente.");}
+        await _s3Client.PutObjectAsync(request, ct);
+    }
 
-    public Task<Stream> DownloadAsync(string key, CancellationToken ct = default)
+    public async Task<Stream> DownloadAsync(string key, CancellationToken ct = default)
     {
-        var fileStream = File.OpenRead(@"C:\Users\DANIEL\Downloads\factura-oficial.pdf");
-        return Task.FromResult<Stream>(fileStream);
+        var request = new GetObjectRequest
+        {
+            BucketName = _bucketName,
+            Key = key
+        };
+
+        var response = await _s3Client.GetObjectAsync(request, ct);
+        return response.ResponseStream;
     }
 
     public async Task DeleteAsync(string key, CancellationToken ct = default)
@@ -51,6 +56,13 @@ public class MinioStorageService : IStorageService
             Key = key
         };
 
-        throw new NotImplementedException("S3/MinIO deshabilitado temporalmente.");}
+        await _s3Client.DeleteObjectAsync(request, ct);
+    }
 
+    private async Task EnsureBucketExistsAsync(CancellationToken ct)
+    {
+        var exists = await AmazonS3Util.DoesS3BucketExistV2Async(_s3Client, _bucketName);
+        if (!exists)
+            await _s3Client.PutBucketAsync(_bucketName, ct);
+    }
 }

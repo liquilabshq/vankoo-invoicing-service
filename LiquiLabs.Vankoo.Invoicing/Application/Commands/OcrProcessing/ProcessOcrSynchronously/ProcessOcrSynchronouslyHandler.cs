@@ -42,7 +42,10 @@ public class ProcessOcrSynchronouslyHandler : IRequestHandler<ProcessOcrSynchron
         try
         {
             await using var fileStream = await _storageService.GetFileStreamAsync(invoice.Document.Key, cancellationToken);
-            var result = await _ocrService.ExtractInvoiceDataAsync(fileStream, cancellationToken);
+            using var memoryStream = new MemoryStream();
+            await fileStream.CopyToAsync(memoryStream, cancellationToken);
+            memoryStream.Position = 0;
+            var result = await _ocrService.ExtractInvoiceDataAsync(memoryStream, cancellationToken);
             
             invoice.RegisterOcrResults(result);
             await _invoiceRepository.SaveAsync(invoice, cancellationToken);
