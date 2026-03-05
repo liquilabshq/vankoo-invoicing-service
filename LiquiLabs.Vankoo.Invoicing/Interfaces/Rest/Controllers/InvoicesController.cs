@@ -14,7 +14,7 @@ public class InvoicesController : ControllerBase
     {
         _mediator = mediator;
     }
-
+    
     // POST: api/v1/invoices/{id}/ocr/sync
     [HttpPost("{id}/ocr/sync")]
     public async Task<IActionResult> ProcessOcrSync([FromRoute] string id)

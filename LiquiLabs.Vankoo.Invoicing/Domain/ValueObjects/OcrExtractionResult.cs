@@ -17,13 +17,11 @@ public sealed record OcrExtractionResult
         Metadata = metadata ?? throw new ArgumentNullException(nameof(metadata));
         TotalAmount = totalAmount ?? throw new ArgumentNullException(nameof(totalAmount));
         Items = items ?? throw new ArgumentNullException(nameof(items));
-
-        if (!items.Any())
-            throw new ArgumentException("Items cannot be empty");
     }
 
     public bool HasConsistentTotal()
     {
+        if (!Items.Any()) return false;
         var itemsTotal = Items.Sum(i => i.Subtotal.Amount);
         return Math.Abs(TotalAmount.Amount - itemsTotal) <= 0.02m;
     }
