@@ -1,4 +1,3 @@
-using LiquiLabs.Vankoo.Invoicing.Application.Commands.CreateInvoice;
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.OcrProcessing.ProcessOcrSynchronously;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -15,14 +14,7 @@ public class InvoicesController : ControllerBase
     {
         _mediator = mediator;
     }
-
-    [HttpPost]
-    public async Task<IActionResult> CreateInvoice([FromBody] CreateInvoiceCommand command)
-    {
-        var invoiceId = await _mediator.Send(command);
-        return Created($"/api/v1/invoices/{invoiceId}", new { id = invoiceId });
-    }
-
+    
     // POST: api/v1/invoices/{id}/ocr/sync
     [HttpPost("{id}/ocr/sync")]
     public async Task<IActionResult> ProcessOcrSync([FromRoute] string id)
