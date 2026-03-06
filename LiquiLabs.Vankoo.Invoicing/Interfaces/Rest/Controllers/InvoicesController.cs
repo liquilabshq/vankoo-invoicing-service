@@ -1,6 +1,8 @@
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.OcrProcessing.ProcessOcrSynchronously;
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.UploadInvoice;
 using LiquiLabs.Vankoo.Invoicing.Application.Queries.DownloadInvoiceFile;
+using LiquiLabs.Vankoo.Invoicing.Interfaces.Rest.Dto.Requests;
+using LiquiLabs.Vankoo.Invoicing.Interfaces.Rest.Dto.Responses;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -20,27 +22,28 @@ public class InvoicesController : ControllerBase
     // POST: api/v1/invoices
     [HttpPost]
     [Consumes("multipart/form-data")]
-    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(InvoiceResource), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> UploadInvoice(
-        IFormFile file,
-        [FromForm] string mypeId,
+        [FromForm] UploadInvoiceResource request,
         CancellationToken ct)
     {
-        var command = new UploadInvoiceCommand(
-            mypeId,
-            file.FileName,
-            file.ContentType,
-            file.Length,
-            file.OpenReadStream());
+        var command = new UploadInvoiceCommand
+        {
+            MypeId = request.MypeId,
+            OriginalName = request.File.FileName,
+            ContentType = request.File.ContentType,
+            FileSizeBytes = request.File.Length,
+            FileStream = request.File.OpenReadStream()
+        };
 
         var invoiceId = await _mediator.Send(command, ct);
 
         return CreatedAtAction(
             nameof(DownloadInvoiceFile),
             new { id = invoiceId },
-            new { InvoiceId = invoiceId });
+            new InvoiceResource { InvoiceId = invoiceId });
     }
 
     // GET: api/v1/invoices/{id}/file
