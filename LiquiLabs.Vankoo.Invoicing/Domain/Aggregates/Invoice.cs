@@ -112,6 +112,33 @@ public sealed class Invoice
         Status = InvoiceStatus.DATA_EXTRACTED;
         UpdatedAt = DateTime.UtcNow;
     }
+
+    public void EnsureReadyForOcrProcessedEvent()
+    {
+        if (Status != InvoiceStatus.DATA_EXTRACTED)
+            throw new InvalidInvoiceStateException(Status, "publish OCR processed integration event");
+
+        if (PayerData is null)
+            throw new IncompleteOcrDataException(Id.Value, "PayerData");
+
+        if (PayerData.Ruc is null || string.IsNullOrWhiteSpace(PayerData.Ruc.Value))
+            throw new IncompleteOcrDataException(Id.Value, "PayerRuc");
+
+        if (string.IsNullOrWhiteSpace(PayerData.GetDisplayName()))
+            throw new IncompleteOcrDataException(Id.Value, "PayerName");
+
+        if (TotalAmount is null)
+            throw new IncompleteOcrDataException(Id.Value, "TotalAmount");
+
+        if (TotalAmount.Amount <= 0)
+            throw new IncompleteOcrDataException(Id.Value, "TotalAmount(>0)");
+
+        if (Metadata is null)
+            throw new IncompleteOcrDataException(Id.Value, "Metadata");
+
+        if (Metadata.DueDate == default)
+            throw new IncompleteOcrDataException(Id.Value, "DueDate");
+    }
     
     private bool CanBeRejected()
         => Status is

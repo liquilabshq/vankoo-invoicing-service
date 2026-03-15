@@ -25,31 +25,19 @@ public sealed class InvoiceOcrProcessedEventHandler
         CancellationToken cancellationToken)
     {
         var invoice = notification.Invoice;
-        
-        // ORIGINAL
-        // var integrationEvent = new InvoiceOcrProcessedIntegrationEvent(
-        //     EventId: Guid.NewGuid(),
-        //     OccurredOn: DateTime.UtcNow,
-        //     InvoiceId: invoice.Id.Value,
-        //     MypeId: invoice.MypeId.ToString(),
-        //     PayerRuc: invoice.PayerData.Ruc.Value,
-        //     PayerName: invoice.PayerData.GetDisplayName(),
-        //     DueDate: invoice.Metadata.DueDate,
-        //     Currency: invoice.Metadata.Currency.ToString(),
-        //     TotalAmount: invoice.TotalAmount.Amount
-        // );
-        
-        // PROBAR
+
+        invoice.EnsureReadyForOcrProcessedEvent();
+
         var integrationEvent = new InvoiceOcrProcessedIntegrationEvent(
             EventId: Guid.NewGuid(),
             OccurredOn: DateTime.UtcNow,
-            InvoiceId: invoice.Id?.Value ?? "00000000-0000-0000-0000-000000000",
-            MypeId: invoice.MypeId?.ToString() ?? "UNKNOWN",
-            PayerRuc: invoice.PayerData?.Ruc?.Value ?? "00000000000",
-            PayerName: invoice.PayerData?.GetDisplayName() ?? "SIN NOMBRE",
-            DueDate: invoice.Metadata?.DueDate ?? DateTime.UtcNow,
-            Currency: invoice.Metadata?.Currency.ToString() ?? "PEN",
-            TotalAmount: invoice.TotalAmount?.Amount ?? 0m
+            InvoiceId: invoice.Id.Value,
+            MypeId: invoice.MypeId.ToString(),
+            PayerRuc: invoice.PayerData!.Ruc.Value,
+            PayerName: invoice.PayerData.GetDisplayName(),
+            DueDate: invoice.Metadata!.DueDate,
+            Currency: invoice.Metadata.Currency.ToString(),
+            TotalAmount: invoice.TotalAmount!.Amount
         );
 
         _logger.LogInformation(

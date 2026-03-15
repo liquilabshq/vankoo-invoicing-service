@@ -36,8 +36,22 @@ public class ProcessOcrSynchronouslyHandler : IRequestHandler<ProcessOcrSynchron
         var invoice = await _invoiceRepository.GetByIdAsync(invoiceId, cancellationToken);
         if (invoice == null) throw new InvoiceNotFoundException(invoiceId.Value);
 
-        invoice.StartOcrProcessing();
-        await _invoiceRepository.SaveAsync(invoice, cancellationToken);
+        if (invoice.Status == InvoiceStatus.DATA_EXTRACTED)
+        {
+            _logger.LogInformation("Invoice {InvoiceId} ya tiene OCR procesado. Re-publicando evento de dominio.", command.InvoiceId);
+            await _mediator.Publish(new InvoiceOcrProcessedDomainEvent(invoice), cancellationToken);
+            return;
+        }
+
+        if (invoice.Status == InvoiceStatus.UPLOADED)
+        {
+            invoice.StartOcrProcessing();
+            await _invoiceRepository.SaveAsync(invoice, cancellationToken);
+        }
+        else if (invoice.Status != InvoiceStatus.OCR_PROCESSING)
+        {
+            throw new InvalidInvoiceStateException(invoice.Status, "start OCR processing");
+        }
 
         try
         {
@@ -50,7 +64,7 @@ public class ProcessOcrSynchronouslyHandler : IRequestHandler<ProcessOcrSynchron
             invoice.RegisterOcrResults(result);
             await _invoiceRepository.SaveAsync(invoice, cancellationToken);
             
-            // Publicar Domain Event -> MediatR lo enruta al InvoiceOcrProcessedEventHandler → Kafka
+            // Publicar Domain Event -> MediatR lo enruta al InvoiceOcrProcessedEventHandler -> Kafka
             await _mediator.Publish(
                 new InvoiceOcrProcessedDomainEvent(invoice),
                 cancellationToken);

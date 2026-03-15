@@ -1,25 +1,28 @@
-using LiquiLabs.Vankoo.Invoicing.Application.Commands.OcrProcessing.ProcessOcrSynchronously;
 using LiquiLabs.Vankoo.Invoicing.Domain.Events;
+using LiquiLabs.Vankoo.Invoicing.Domain.Repositories;
 using MediatR;
 
 namespace LiquiLabs.Vankoo.Invoicing.Application.EventHandlers;
 
 public sealed class InvoiceCreatedEventHandler : INotificationHandler<InvoiceCreatedEvent>
 {
-    private readonly IMediator _mediator;
+    private readonly IOcrTaskRepository _ocrTaskRepository;
     private readonly ILogger<InvoiceCreatedEventHandler> _logger;
 
-    public InvoiceCreatedEventHandler(IMediator mediator, ILogger<InvoiceCreatedEventHandler> logger)
+    public InvoiceCreatedEventHandler(IOcrTaskRepository ocrTaskRepository, ILogger<InvoiceCreatedEventHandler> logger)
     {
-        _mediator = mediator;
+        _ocrTaskRepository = ocrTaskRepository;
         _logger = logger;
     }
 
     public async Task Handle(InvoiceCreatedEvent notification, CancellationToken ct)
     {
-        var invoiceId = notification.Invoice.Id.Value;
-        _logger.LogInformation("Factura {InvoiceId} creada. Iniciando OCR síncrono.", invoiceId);
+        var invoice = notification.Invoice;
 
-        await _mediator.Send(new ProcessOcrSynchronouslyCommand(invoiceId), ct);
+        _logger.LogInformation(
+            "Factura {InvoiceId} creada. Encolando OCR task interna.",
+            invoice.Id.Value);
+
+        await _ocrTaskRepository.EnqueueIfNotExistsAsync(invoice.Id.Value, ct);
     }
 }
