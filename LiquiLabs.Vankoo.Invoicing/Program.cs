@@ -12,6 +12,7 @@ using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure.Mappe
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Persistence.MongoDB.Contexts;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Persistence.MongoDB.Repositories;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Storage;
+using LiquiLabs.Vankoo.Invoicing.Infrastructure.Workers;
 using LiquiLabs.Vankoo.Invoicing.Shared.Infrastructure.Web;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -32,6 +33,7 @@ builder.Services.Configure<DbSettings>(builder.Configuration.GetSection("DbSetti
 builder.Services.Configure<TokenSettings>(builder.Configuration.GetSection("TokenSettings"));
 builder.Services.Configure<AzureOcrSettings>(builder.Configuration.GetSection("AzureOcrSettings")); // Azure OCR
 builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings")); // Kafka
+builder.Services.Configure<OcrWorkerSettings>(builder.Configuration.GetSection("OcrWorkerSettings"));
 
 builder.Services.Configure<MinioSettings>(builder.Configuration.GetSection("MinioSettings"));
 
@@ -80,6 +82,7 @@ builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
 // Registrar el Repositorio de MongoDB
 builder.Services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+builder.Services.AddScoped<IOcrTaskRepository, OcrTaskRepository>();
 
 // Registrar los Servicios de Dominio/Aplicación
 builder.Services.AddScoped<IOcrService, AzureOcrService>();
@@ -87,6 +90,7 @@ builder.Services.AddScoped<IStorageService, MinioStorageService>();
 builder.Services.AddSingleton<AzureOcrMapper>();
 builder.Services.AddSingleton<MongoContext>();
 builder.Services.AddSingleton<IEventBus, KafkaEventBus>();
+builder.Services.AddHostedService<OcrTaskWorker>();
 
 var app = builder.Build();
 
