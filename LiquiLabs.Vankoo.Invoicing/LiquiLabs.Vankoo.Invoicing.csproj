@@ -8,6 +8,8 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="AspNetCore.HealthChecks.Kafka" Version="9.0.0" />
+        <PackageReference Include="AspNetCore.HealthChecks.MongoDb" Version="9.0.0" />
         <PackageReference Include="Azure.AI.FormRecognizer" Version="4.1.0" />
         <PackageReference Include="Confluent.Kafka" Version="2.13.1" />
         <!-- Paquete de MongoDB para .NET -->
@@ -25,6 +27,7 @@
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3" />
         <!-- Alternativa a Swashbuckle para generar documentación OpenAPI (Swagger) para ASP.NET Core -->
         <PackageReference Include="Scalar.AspNetCore" Version="2.12.40" />
+        <PackageReference Include="Steeltoe.Discovery.Eureka" Version="4.1.0" />
     </ItemGroup>
 
     <ItemGroup>
