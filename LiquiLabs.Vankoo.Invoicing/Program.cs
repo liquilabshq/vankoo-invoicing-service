@@ -5,22 +5,26 @@ using LiquiLabs.Vankoo.Invoicing.Domain.Repositories;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Brokers.Kafka;
 using Amazon.Runtime;
 using Amazon.S3;
-using LiquiLabs.Vankoo.Invoicing.Application.Interfaces;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Configuration.Settings;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure.Mappers;
+using LiquiLabs.Vankoo.Invoicing.Infrastructure.HealthChecks;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Persistence.MongoDB.Contexts;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Persistence.MongoDB.Repositories;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Storage;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Workers;
 using LiquiLabs.Vankoo.Invoicing.Shared.Infrastructure.Web;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
+using MongoDB.Driver;
 using Scalar.AspNetCore;
+using Steeltoe.Discovery.Eureka;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,10 +35,9 @@ BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard
 // 2. CARGA DE CONFIGURACIONES (IOptions Pattern)
 builder.Services.Configure<DbSettings>(builder.Configuration.GetSection("DbSettings"));
 builder.Services.Configure<TokenSettings>(builder.Configuration.GetSection("TokenSettings"));
-builder.Services.Configure<AzureOcrSettings>(builder.Configuration.GetSection("AzureOcrSettings")); // Azure OCR
-builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings")); // Kafka
+builder.Services.Configure<AzureOcrSettings>(builder.Configuration.GetSection("AzureOcrSettings"));
+builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings"));
 builder.Services.Configure<OcrWorkerSettings>(builder.Configuration.GetSection("OcrWorkerSettings"));
-
 builder.Services.Configure<MinioSettings>(builder.Configuration.GetSection("MinioSettings"));
 
 // Límite de tamaño de archivo: el framework rechaza requests que superen esto antes de llegar al dominio
@@ -61,30 +64,55 @@ builder.Services.AddSingleton<IAmazonS3>(sp =>
 });
 builder.Services.AddScoped<IStorageService, MinioStorageService>();
 
-// 4. AGREGAR SERVICIOS DE LA APLICACIÓN
+// 4. HEALTH CHECKS
+// MongoDb 9.x resuelve MongoClient desde DI — registramos el singleton aquí.
+// MongoContext crea su propio cliente internamente; este singleton es exclusivo para el health check.
+builder.Services.AddSingleton<MongoClient>(sp =>
+{
+    var settings = sp.GetRequiredService<IOptions<DbSettings>>().Value;
+    return new MongoClient(settings.ConnectionString);
+});
+builder.Services.AddHealthChecks()
+    // MongoDB: crítico — sin base de datos el servicio no puede operar
+    .AddMongoDb(
+        failureStatus: HealthStatus.Unhealthy,
+        tags: ["ready"])
+    // Kafka:    degradado — la factura se persiste igual, solo falla la publicación del evento
+    .AddKafka(
+        setup =>
+        {
+            setup.BootstrapServers = builder.Configuration["KafkaSettings:BootstrapServers"];
+        },
+        failureStatus: HealthStatus.Degraded,
+        tags: ["ready"])
+    // MinIO: degradado — las subidas fallarían pero el servicio sigue en pie
+    .AddCheck<MinioHealthCheck>(
+        name: "minio",
+        failureStatus: HealthStatus.Degraded,
+        tags: ["ready"]);
+
+// 5. SERVICE DISCOVERY (Eureka)
+// Steeltoe 4.x: AddEurekaDiscoveryClient() en IServiceCollection (no IHostApplicationBuilder)
+builder.Services.AddEurekaDiscoveryClient();
+
+// 6. AGREGAR SERVICIOS DE LA APLICACIÓN
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 builder.Services.AddRouting(options => options.LowercaseUrls = true);
-builder.Services.AddControllers(); // Necesario para la capa de Interfaces
-builder.Services.AddOpenApi();     // Soporte nativo de OpenAPI de .NET 10
+builder.Services.AddControllers();
+builder.Services.AddOpenApi();
 
-// 4. Registrar MediatR y el Behavior de validación
-builder.Services.AddMediatR(config => {
-    // Busca todos los Comandos/Handlers en este proyecto
+// 7. MediatR + ValidationBehavior pipeline
+builder.Services.AddMediatR(config =>
+{
     config.RegisterServicesFromAssembly(typeof(Program).Assembly);
-    
-    // Conecta el ValidationBehavior al flujo (Pipeline)
     config.AddOpenBehavior(typeof(ValidationBehavior<,>));
 });
-
-// Registrar FluentValidation
 builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
-// Registrar el Repositorio de MongoDB
+// 8. REPOSITORIOS, SERVICIOS DE DOMINIO E INFRAESTRUCTURA
 builder.Services.AddScoped<IInvoiceRepository, InvoiceRepository>();
 builder.Services.AddScoped<IOcrTaskRepository, OcrTaskRepository>();
-
-// Registrar los Servicios de Dominio/Aplicación
 builder.Services.AddScoped<IOcrService, AzureOcrService>();
 builder.Services.AddScoped<IStorageService, MinioStorageService>();
 builder.Services.AddSingleton<AzureOcrMapper>();
@@ -95,12 +123,9 @@ builder.Services.AddHostedService<OcrTaskWorker>();
 var app = builder.Build();
 
 // 5. CONFIGURAR EL PIPELINE HTTP
-if (app.Environment.IsDevelopment())
+if (!app.Environment.IsProduction())
 {
-    // Habilitar el endpoint de OpenAPI (json)
     app.MapOpenApi();
-    
-    // Configurar Scalar como interfaz de pruebas (reemplaza Swagger UI)
     app.MapScalarApiReference(options =>
     {
         options.WithTitle("Invoicing Service API")
@@ -110,9 +135,33 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseExceptionHandler();
-app.UseHttpsRedirection();
 
-// 6. MAPEO DE CONTROLADORES
+// Solo redirigir a HTTPS en desarrollo local (en Docker se usa solo HTTP en el puerto 8080)
+if (app.Environment.IsDevelopment())
+    app.UseHttpsRedirection();
+
+// 10. HEALTH CHECK ENDPOINTS
+// Liveness: solo verifica que el proceso está vivo, sin checks externos.
+// Si falla, Docker reinicia el contenedor.
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false
+});
+
+// Readiness: verifica que todas las dependencias críticas están disponibles.
+// Si falla (503), el servicio no recibe tráfico hasta que se recupere.
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResultStatusCodes =
+    {
+        [HealthStatus.Healthy]   = StatusCodes.Status200OK,
+        [HealthStatus.Degraded]  = StatusCodes.Status200OK,
+        [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable
+    }
+});
+
+// 11. MAPEO DE CONTROLADORES
 app.MapControllers();
 
 app.Run();
