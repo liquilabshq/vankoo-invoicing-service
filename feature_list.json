@@ -1,0 +1,60 @@
+{
+  "project": "invoicing-service",
+  "description": "Microservicio de gestión de facturas del ecosistema Vankoo. Clean Architecture + DDD + CQRS sobre .NET 10, MongoDB, MinIO, Kafka y Azure AI Document Intelligence.",
+  "rules": {
+    "one_feature_at_a_time": true,
+    "require_tests_to_close": false,
+    "valid_status": [
+      "pending",
+      "in_progress",
+      "done",
+      "blocked"
+    ]
+  },
+  "notes": "require_tests_to_close esta en false porque el repo todavia no tiene proyecto de tests (ver docs/verification.md). Cambiar a true en cuanto exista LiquiLabs.Vankoo.Invoicing.Tests.",
+  "features": [
+    {
+      "id": 1,
+      "name": "invoice_file_storage",
+      "title": "Guardar el archivo de la factura en almacenamiento de objetos",
+      "description": "Persistir el archivo subido (PDF/imagen) en un bucket S3-compatible al momento de registrar la factura.",
+      "acceptance": [
+        "IStorageService definido en Application/Interfaces",
+        "MinioStorageService (Infrastructure/Storage/MinIO) implementa la subida via UploadAsync",
+        "UploadInvoiceCommandHandler sube el archivo antes de persistir la factura",
+        "Errores de subida/disponibilidad manejados con FileUploadException / StorageUnavailableException"
+      ],
+      "status": "done"
+    },
+    {
+      "id": 3,
+      "name": "docker_full_containerization",
+      "title": "Terminar de contenerizar Invoicing con su BD y probarlo end-to-end",
+      "description": "El Dockerfile multi-stage ya existe. Falta validar que el servicio levanta correctamente junto a MongoDB, Kafka y MinIO usando la infraestructura externa (repo vankoo/infrastructure) y que responde bien.",
+      "acceptance": [
+        "docker compose up -d --build invoicing-service (desde vankoo/infrastructure) levanta el contenedor sin errores",
+        "GET /health/live responde 200",
+        "GET /health/ready responde 200 con MongoDB, Kafka y MinIO healthy",
+        "POST /api/v1/invoices sube una factura de prueba y el archivo aparece en MinIO",
+        "compose.yaml no vuelve a este repo (la infra vive en vankoo/infrastructure) -- confirmar que no se re-agregue por error"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 4,
+      "name": "upload_invoice_auth_fix",
+      "title": "Autenticar el endpoint de upload y dejar de fabricar el mypeId",
+      "description": "InvoicesController.UploadInvoice NO recibe mypeId del form (no hay ese problema hoy): genera uno random con MypeId.NewId() y tiene un TODO 'REEMPLAZAR POR EL MYPEID REAL'. El problema real es mas grande: Program.cs no tiene AddAuthentication/AddJwtBearer configurado, o sea no hay autenticacion JWT wireada en el servicio todavia. Esta feature no es un cambio de 30 min: implica configurar JWT bearer auth (Authority/clave publica del IAM, ver TokenSettings en appsettings), agregar [Authorize(Roles = \"Mype\")], y recien ahi leer mypeId con User.FindFirstValue(\"mypeId\"). No hacer auth parcial.",
+      "acceptance": [
+        "Program.cs configura AddAuthentication().AddJwtBearer(...) usando TokenSettings/Authority del IAM",
+        "builder.Services usa app.UseAuthentication() + app.UseAuthorization() en el pipeline, en el orden correcto",
+        "InvoicesController usa [Authorize(Roles = \"Mype\")] en el endpoint de upload",
+        "Se elimina MypeId.NewId() y el TODO del controller",
+        "mypeId se obtiene con User.FindFirstValue(\"mypeId\") en lugar de generarse en el servidor",
+        "UploadInvoiceCommand ya no expone mypeId como dato inventado por el propio servicio",
+        "Probado con un JWT real (o uno fabricado a mano para pruebas) que trae el claim mypeId"
+      ],
+      "status": "pending"
+    }
+  ]
+}
