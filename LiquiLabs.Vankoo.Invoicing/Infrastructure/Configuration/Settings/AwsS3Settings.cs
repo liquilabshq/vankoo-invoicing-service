@@ -1,11 +1,9 @@
 namespace LiquiLabs.Vankoo.Invoicing.Infrastructure.Configuration.Settings;
 
-public class MinioSettings
+public sealed class AwsS3Settings
 {
-    public string Endpoint { get; set; } = string.Empty;
+    public string Region { get; set; } = string.Empty;
     public string AccessKey { get; set; } = string.Empty;
     public string SecretKey { get; set; } = string.Empty;
     public string BucketName { get; set; } = string.Empty;
-    public bool UseSSL { get; set; }
-    public bool AutoCreateBucket { get; set; } = true;
 }

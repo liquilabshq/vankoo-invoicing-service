@@ -55,6 +55,21 @@
         "Probado con un JWT real (o uno fabricado a mano para pruebas) que trae el claim mypeId"
       ],
       "status": "pending"
+    },
+    {
+      "id": 5,
+      "name": "s3_object_storage_provider",
+      "title": "Permitir AWS S3 como proveedor de almacenamiento de facturas",
+      "description": "Conservar MinIO para desarrollo y permitir configurar AWS S3 para persistir, descargar y procesar archivos de facturas, verificando que el puerto de Application no dependa de un proveedor concreto.",
+      "acceptance": [
+        "IStorageService permanece como el único contrato usado por Application",
+        "La configuración permite seleccionar MinIO o AWS S3 sin cambios en handlers, dominio o controladores",
+        "AWS S3 usa región, bucket y credenciales/configuración estándar de AWS; no fuerza path-style",
+        "MinIO conserva su configuración S3-compatible y force path-style",
+        "Las operaciones de upload, download y health check usan el proveedor seleccionado",
+        "La estructura deja documentado qué se reutiliza para proveedores S3-compatible y qué adapter adicional requeriría Azure Blob Storage"
+      ],
+      "status": "in_progress"
     }
   ]
 }
