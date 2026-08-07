@@ -1,6 +1,7 @@
 using LiquiLabs.Vankoo.Invoicing.Application.Interfaces;
 using LiquiLabs.Vankoo.Invoicing.Application.Internal.Files;
 using LiquiLabs.Vankoo.Invoicing.Domain.Aggregates;
+using LiquiLabs.Vankoo.Invoicing.Domain.Events;
 using LiquiLabs.Vankoo.Invoicing.Domain.Repositories;
 using LiquiLabs.Vankoo.Invoicing.Domain.ValueObjects;
 using MediatR;
@@ -13,15 +14,18 @@ public class UploadInvoiceCommandHandler : IRequestHandler<UploadInvoiceCommand,
     private readonly IStorageService _storageService;
     private readonly IInvoiceRepository _repository;
     private readonly InvoiceFileInspector _fileInspector;
+    private readonly IMediator _mediator;
 
     public UploadInvoiceCommandHandler(
         IStorageService storageService,
         IInvoiceRepository repository,
-        InvoiceFileInspector fileInspector)
+        InvoiceFileInspector fileInspector,
+        IMediator mediator)
     {
         _storageService = storageService;
         _repository = repository;
         _fileInspector = fileInspector;
+        _mediator = mediator;
     }
 
     public async Task<string> Handle(UploadInvoiceCommand command, CancellationToken ct)
@@ -47,6 +51,8 @@ public class UploadInvoiceCommandHandler : IRequestHandler<UploadInvoiceCommand,
 
         await _storageService.UploadAsync(invoice.Document.Key.Value, bufferedFile, command.ContentType, ct);
         await _repository.SaveAsync(invoice, ct);
+
+        await _mediator.Publish(new InvoiceCreatedEvent(invoice), ct);
 
         return invoice.Id.Value;
     }

@@ -39,8 +39,20 @@ public sealed class ProcessOcrSynchronouslyHandler
         var invoice = await _invoiceRepository.GetByIdAsync(invoiceId, cancellationToken)
                       ?? throw new InvoiceNotFoundException(invoiceId.Value);
 
-        invoice.StartOcrProcessing();
-        await _invoiceRepository.SaveAsync(invoice, cancellationToken);
+        if (invoice.Status is InvoiceStatus.CONSISTENCY_PASSED
+            or InvoiceStatus.REQUIRES_REVIEW
+            or InvoiceStatus.NOT_ELIGIBLE)
+            return InvoiceDetailsResponse.FromInvoice(invoice);
+
+        if (invoice.Status == InvoiceStatus.UPLOADED)
+        {
+            invoice.StartOcrProcessing();
+            await _invoiceRepository.SaveAsync(invoice, cancellationToken);
+        }
+        else if (invoice.Status != InvoiceStatus.OCR_PROCESSING)
+        {
+            throw new InvalidInvoiceStateException(invoice.Status, "start OCR processing");
+        }
 
         OcrExtractionResult extraction;
         try
@@ -53,10 +65,6 @@ public sealed class ProcessOcrSynchronouslyHandler
         catch (Exception exception)
         {
             _logger.LogError(exception, "OCR failed for invoice {InvoiceId}", command.InvoiceId);
-            invoice.Reject(RejectionReason.Create(
-                $"Fallo durante el procesamiento OCR: {exception.Message}",
-                "SYSTEM"));
-            await _invoiceRepository.SaveAsync(invoice, cancellationToken);
             throw;
         }
 

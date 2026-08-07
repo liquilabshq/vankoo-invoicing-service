@@ -4,6 +4,7 @@ namespace LiquiLabs.Vankoo.Invoicing.Application.Commands.UploadInvoice;
 
 public sealed class UploadInvoiceCommandValidator : AbstractValidator<UploadInvoiceCommand>
 {
+    private const long MaxFileSizeBytes = 10 * 1024 * 1024;
     private static readonly string[] SupportedContentTypes =
         ["application/pdf", "image/jpeg", "image/png"];
 
@@ -16,10 +17,11 @@ public sealed class UploadInvoiceCommandValidator : AbstractValidator<UploadInvo
 
         RuleFor(command => command.OriginalName).NotEmpty();
         RuleFor(command => command.FileSizeBytes)
-            .GreaterThan(0)
-            .LessThanOrEqualTo(10 * 1024 * 1024);
+            .GreaterThan(0).WithMessage("El archivo no puede estar vacío.")
+            .LessThanOrEqualTo(MaxFileSizeBytes).WithMessage("El archivo no puede superar los 10MB.");
         RuleFor(command => command.ContentType)
-            .Must(contentType => SupportedContentTypes.Contains(contentType.ToLowerInvariant()))
+            .NotEmpty()
+            .Must(contentType => SupportedContentTypes.Contains(contentType, StringComparer.OrdinalIgnoreCase))
             .WithMessage("La factura debe ser PDF, JPEG o PNG.");
         RuleFor(command => command.FileStream).NotNull();
     }

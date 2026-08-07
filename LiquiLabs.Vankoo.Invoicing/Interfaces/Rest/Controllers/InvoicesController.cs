@@ -1,10 +1,12 @@
-using LiquiLabs.Vankoo.Invoicing.Application.Commands;
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.DeleteAllInvoices;
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.DeleteInvoice;
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.OcrProcessing.ProcessOcrSynchronously;
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.UploadInvoice;
+using LiquiLabs.Vankoo.Invoicing.Application.Queries.DownloadInvoiceFile;
 using LiquiLabs.Vankoo.Invoicing.Application.Queries.GetInvoiceById;
-using LiquiLabs.Vankoo.Invoicing.Interfaces.Rest.Resources;
+using LiquiLabs.Vankoo.Invoicing.Domain.ValueObjects;
+using LiquiLabs.Vankoo.Invoicing.Interfaces.Rest.Dto.Requests;
+using LiquiLabs.Vankoo.Invoicing.Interfaces.Rest.Dto.Responses;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,11 +14,11 @@ namespace LiquiLabs.Vankoo.Invoicing.Interfaces.Rest.Controllers;
 
 [ApiController]
 [Route("api/v1/[controller]")]
-public class InvoicesController : ControllerBase
+public sealed class InvoicesController : ControllerBase
 {
     private readonly IMediator _mediator;
     private readonly IWebHostEnvironment _environment;
-    
+
     public InvoicesController(IMediator mediator, IWebHostEnvironment environment)
     {
         _mediator = mediator;
@@ -26,27 +28,30 @@ public class InvoicesController : ControllerBase
     [HttpPost]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(10 * 1024 * 1024)]
+    [ProducesResponseType(typeof(InvoiceResource), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> UploadInvoice(
-        [FromForm] UploadInvoiceForm form,
+        [FromForm] UploadInvoiceResource request,
         CancellationToken cancellationToken)
     {
-        if (form.File.Length == 0)
-            return BadRequest("El archivo de factura está vacío.");
-
-        await using var stream = form.File.OpenReadStream();
-        var invoiceId = await _mediator.Send(new UploadInvoiceCommand
+        await using var stream = request.File.OpenReadStream();
+        var command = new UploadInvoiceCommand
         {
-            MypeId = form.MypeId,
-            OriginalName = form.File.FileName,
-            ContentType = form.File.ContentType,
-            FileSizeBytes = form.File.Length,
+            // TODO: Replace with the authenticated MYPE identifier when JWT support is implemented.
+            MypeId = MypeId.NewId().ToString(),
+            OriginalName = request.File.FileName,
+            ContentType = request.File.ContentType,
+            FileSizeBytes = request.File.Length,
             FileStream = stream
-        }, cancellationToken);
+        };
+
+        var invoiceId = await _mediator.Send(command, cancellationToken);
 
         return CreatedAtAction(
-            nameof(GetInvoiceById),
+            nameof(DownloadInvoiceFile),
             new { id = invoiceId },
-            new { InvoiceId = invoiceId, Status = "UPLOADED" });
+            new InvoiceResource { InvoiceId = invoiceId });
     }
 
     [HttpGet("{id}")]
@@ -56,6 +61,17 @@ public class InvoicesController : ControllerBase
     {
         var response = await _mediator.Send(new GetInvoiceByIdQuery(id), cancellationToken);
         return Ok(response);
+    }
+
+    [HttpGet("{id}/file")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DownloadInvoiceFile(
+        [FromRoute] string id,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(new DownloadInvoiceFileQuery(id), cancellationToken);
+        return File(result.Stream, result.ContentType, result.FileName);
     }
 
     [HttpDelete("{id}")]
@@ -87,39 +103,17 @@ public class InvoicesController : ControllerBase
         var deletedCount = await _mediator.Send(new DeleteAllInvoicesCommand(), cancellationToken);
         return Ok(new { DeletedCount = deletedCount });
     }
-    
-    // POST: api/v1/invoices/{id}/ocr/sync
+
     [HttpPost("{id}/ocr/sync")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ProcessOcrSync(
         [FromRoute] string id,
         CancellationToken cancellationToken)
     {
-        var command = new ProcessOcrSynchronouslyCommand(id);
-        var response = await _mediator.Send(command, cancellationToken);
+        var response = await _mediator.Send(
+            new ProcessOcrSynchronouslyCommand(id),
+            cancellationToken);
         return Ok(response);
     }
-    
-    [HttpPost("upload-local")]
-    public async Task<IActionResult> UploadInvoiceFromLocalPath(
-        [FromQuery] string mypeId,
-        [FromQuery] string filePath,
-        CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(mypeId))
-            return BadRequest("El MypeId es requerido.");
-
-        if (string.IsNullOrWhiteSpace(filePath))
-            return BadRequest("El filePath es requerido.");
-
-        var command = new UploadInvoicePruebaCommand(mypeId, filePath);
-        var invoiceId = await _mediator.Send(command, cancellationToken);
-
-        return Ok(new
-        {
-            InvoiceId = invoiceId,
-            Message = "Factura leída desde disco local y subida correctamente."
-        });
-    }
 }
-
-
