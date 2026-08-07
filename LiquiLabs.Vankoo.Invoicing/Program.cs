@@ -1,11 +1,13 @@
 using FluentValidation;
 using LiquiLabs.Vankoo.Invoicing.Application.Behaviors;
 using LiquiLabs.Vankoo.Invoicing.Application.Interfaces;
+using LiquiLabs.Vankoo.Invoicing.Application.Internal.Files;
+using LiquiLabs.Vankoo.Invoicing.Application.Internal.Ocr;
 using LiquiLabs.Vankoo.Invoicing.Domain.Repositories;
+using LiquiLabs.Vankoo.Invoicing.Domain.Services;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Brokers.Kafka;
 using Amazon.Runtime;
 using Amazon.S3;
-using LiquiLabs.Vankoo.Invoicing.Application.Interfaces;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Configuration.Settings;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure.Mappers;
@@ -58,7 +60,6 @@ builder.Services.AddSingleton<IAmazonS3>(sp =>
     return new AmazonS3Client(credentials, config);
 });
 builder.Services.AddScoped<IStorageService, MinioStorageService>();
-
 // 4. AGREGAR SERVICIOS DE LA APLICACIÓN
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
@@ -84,6 +85,10 @@ builder.Services.AddScoped<IInvoiceRepository, InvoiceRepository>();
 // Registrar los Servicios de Dominio/Aplicación
 builder.Services.AddScoped<IOcrService, AzureOcrService>();
 builder.Services.AddScoped<IStorageService, MinioStorageService>();
+builder.Services.AddSingleton<InvoiceFileInspector>();
+builder.Services.AddSingleton<InvoiceLineItemResolver>();
+builder.Services.AddSingleton<InvoiceConsistencyValidator>();
+builder.Services.AddScoped<OcrResultProcessor>();
 builder.Services.AddSingleton<AzureOcrMapper>();
 builder.Services.AddSingleton<MongoContext>();
 builder.Services.AddSingleton<IEventBus, KafkaEventBus>();

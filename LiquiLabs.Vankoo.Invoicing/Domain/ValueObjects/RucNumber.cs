@@ -23,7 +23,22 @@ public sealed record RucNumber
         if (!ruc.All(char.IsDigit)) return false;
 
         var prefix = ruc[..2];
-        return prefix is "10" or "15" or "20";
+        if (prefix is not ("10" or "15" or "20")) return false;
+
+        int[] weights = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+        var sum = ruc.Take(10)
+            .Select((digit, index) => (digit - '0') * weights[index])
+            .Sum();
+
+        var calculatedDigit = 11 - sum % 11;
+        calculatedDigit = calculatedDigit switch
+        {
+            10 => 0,
+            11 => 1,
+            _ => calculatedDigit
+        };
+
+        return calculatedDigit == ruc[10] - '0';
     }
 
     public bool IsNaturalPerson() => Value.StartsWith("10");

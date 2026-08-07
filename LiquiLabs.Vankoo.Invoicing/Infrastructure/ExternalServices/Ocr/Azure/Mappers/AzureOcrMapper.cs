@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
-using Azure.AI.FormRecognizer.DocumentAnalysis;
+using Azure.AI.DocumentIntelligence;
+using LiquiLabs.Vankoo.Invoicing.Application.Internal.Ocr;
 using LiquiLabs.Vankoo.Invoicing.Domain.ValueObjects;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure.Exceptions;
 using OcrErrorCode = LiquiLabs.Vankoo.Invoicing.Shared.Infrastructure.Exceptions.OcrErrorCode;
@@ -10,16 +11,28 @@ namespace LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure.M
 public class AzureOcrMapper
 {
     private readonly ILogger<AzureOcrMapper> _logger;
+    private readonly InvoiceLineItemResolver _lineItemResolver;
 
     private static readonly Regex PeruvianDatePattern =
         new(@"\b(\d{2})/(\d{2})/(\d{4})\b", RegexOptions.Compiled);
 
-    private static readonly Regex InvoiceNumberPattern =
-        new(@"\b[EFBR]\d{3}-\d+\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+    private static readonly Regex LegalEntityMarkerPattern =
+        new(@"\b(S\.?A\.?C\.?|S\.?R\.?L\.?|E\.?I\.?R\.?L\.?|SOCIEDAD\s+ANONIMA|EMPRESA\s+INDIVIDUAL)\b",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-    public AzureOcrMapper(ILogger<AzureOcrMapper> logger)
+    private static readonly Regex InvoiceNumberPattern =
+        new(@"\b[A-Z0-9]{1,4}\s*[-–—]\s*\d{1,20}\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly Regex FiscalIdentityPattern =
+        new(@"^\s*(?<series>[A-Z0-9]{1,4})\s*[-–—]\s*(?<number>\d{1,20})\s*$",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    public AzureOcrMapper(
+        ILogger<AzureOcrMapper> logger,
+        InvoiceLineItemResolver lineItemResolver)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _lineItemResolver = lineItemResolver ?? throw new ArgumentNullException(nameof(lineItemResolver));
     }
 
     public OcrExtractionResult MapToOcrExtractionResult(AnalyzeResult azureResult)
@@ -68,16 +81,24 @@ public class AzureOcrMapper
                            "No se pudo extraer el RUC del cliente.",
                            OcrErrorCode.InvalidDocument, isTransient: false);
 
-        var payerName = SanitizeText(
-                            GetStringField(fields, "CustomerName") 
-                            ?? GetStringField(fields, "CustomerAddressRecipient")) 
-                        ?? throw new OcrProcessingException(
-                            "No se pudo extraer el nombre del cliente.",
-                            OcrErrorCode.InvalidDocument, isTransient: false);
+        var payerName = RequireText(
+            SanitizeText(GetStringField(fields, "CustomerName")
+                         ?? GetStringField(fields, "CustomerAddressRecipient")),
+            "No se pudo extraer el nombre del cliente.");
         
         var payerAddress = SanitizeText(
             GetAddressField(fields, "CustomerAddress")
             ?? GetStringField(fields, "CustomerAddress"));
+
+        var issuerRuc = GetStringField(fields, "VendorTaxId")
+                     ?? throw new OcrProcessingException(
+                         "No se pudo extraer el RUC del emisor.",
+                         OcrErrorCode.InvalidDocument, isTransient: false);
+
+        var (issuerLegalName, issuerTradeName) = ExtractIssuerNames(fields);
+        var issuerAddress = SanitizeText(
+            GetAddressField(fields, "VendorAddress")
+            ?? GetStringField(fields, "VendorAddress"));
         
         // ── Montos ─────────────────────────────────────────────────────────
         var totalAmount = GetDecimalField(fields, "InvoiceTotal")
@@ -86,16 +107,26 @@ public class AzureOcrMapper
                               "No se pudo extraer el monto total de la factura.",
                               OcrErrorCode.InvalidDocument, isTransient: false);
 
+        var subtotalAmount = GetDecimalField(fields, "SubTotal");
+        var taxAmount = GetDecimalField(fields, "TotalTax") ?? 0m;
+        var discountAmount = GetDecimalField(fields, "TotalDiscount") ?? 0m;
+
         // ── Moneda ─────────────────────────────────────────────────────────
         var currencyCode = GetStringField(fields, "CurrencyCode")
+                        ?? GetCurrencyCode(fields, "InvoiceTotal")
                         ?? InferCurrencyFromContent(azureResult);
         var currency = ParseCurrency(currencyCode);
+
+        subtotalAmount ??= totalAmount - taxAmount + discountAmount;
 
         // ── Confianza ──────────────────────────────────────────────────────
         var confidence = CalculateAverageConfidence(fields);
 
         // ── Items ──────────────────────────────────────────────────────────
-        var items = ExtractLineItems(fields, currency);
+        var resolvedItems = ExtractLineItems(
+            fields,
+            currency,
+            Money.Of(subtotalAmount.Value, currency));
 
         // ── Construir Value Objects ────────────────────────────────────────
         var payerData = PayerData.Create(
@@ -103,6 +134,12 @@ public class AzureOcrMapper
             payerName,
             tradeName: null,
             address: payerAddress);
+
+        var issuerData = IssuerData.Create(
+            RucNumber.Of(CleanRuc(issuerRuc)),
+            issuerLegalName,
+            issuerTradeName,
+            issuerAddress);
 
         var metadata = InvoiceMetadata.Create(
             series,
@@ -112,51 +149,69 @@ public class AzureOcrMapper
             currency,
             confidence);
 
-        var money = Money.Of(totalAmount, currency);
+        var amounts = InvoiceAmounts.Create(
+            Money.Of(subtotalAmount.Value, currency),
+            Money.Of(taxAmount, currency),
+            Money.Of(discountAmount, currency),
+            Money.Of(totalAmount, currency));
+
+        var fieldConfidences = BuildFieldConfidences(fields);
+        var extractionWarnings = resolvedItems.Warnings.ToList();
+        extractionWarnings.AddRange(BuildMissingConfidenceWarnings(fieldConfidences));
 
         _logger.LogInformation(
             "Mapped invoice {Series}-{Number} | Amount: {Amount} {Currency} | IssueDate: {IssueDate:d} | DueDate: {DueDate:d} | Confidence: {Confidence:P0}",
             series, number, totalAmount, currency, issueDate, dueDate, confidence);
 
-        return new OcrExtractionResult(payerData, metadata, money, items);
+        return new OcrExtractionResult(
+            issuerData,
+            payerData,
+            metadata,
+            amounts,
+            resolvedItems.Items,
+            fieldConfidences,
+            extractionWarnings);
     }
 
     // ── Line Items ─────────────────────────────────────────────────────────
 
-    private List<InvoiceLineItem> ExtractLineItems(
+    private ResolvedInvoiceLineItems ExtractLineItems(
         IReadOnlyDictionary<string, DocumentField> fields,
-        Currency currency)
+        Currency currency,
+        Money expectedSubtotal)
     {
-        var items = new List<InvoiceLineItem>();
+        var candidates = new List<OcrLineItemCandidate>();
 
         if (!fields.TryGetValue("Items", out var itemsField) ||
             itemsField.FieldType != DocumentFieldType.List)
         {
             _logger.LogWarning("No Items field found in Azure result.");
-            return items;
+            return new ResolvedInvoiceLineItems([], []);
         }
 
-        foreach (var itemField in itemsField.Value.AsList())
+        foreach (var itemField in itemsField.ValueList)
         {
             if (itemField.FieldType != DocumentFieldType.Dictionary)
                 continue;
 
-            var itemFields = itemField.Value.AsDictionary();
+            var itemFields = itemField.ValueDictionary;
 
             var description = GetStringField(itemFields, "Description") ?? "Unknown Item";
             var quantity    = GetDecimalField(itemFields, "Quantity")    ?? 1m;
-            var unitPrice   = GetDecimalField(itemFields, "UnitPrice")   ?? 0m;
-            var amount      = GetDecimalField(itemFields, "Amount")      ?? unitPrice * quantity;
+            var unitPrice   = GetDecimalField(itemFields, "UnitPrice");
+            var amount      = GetDecimalField(itemFields, "Amount");
+            var confidence  = GetMinimumKnownConfidence(
+                itemFields,
+                "Description", "Quantity", "UnitPrice", "Amount");
 
             try
             {
-                var lineItem = InvoiceLineItem.CreateFromOcr(
+                candidates.Add(new OcrLineItemCandidate(
                     description,
                     quantity,
-                    Money.Of(unitPrice, currency),
-                    Money.Of(amount, currency));
-
-                items.Add(lineItem);
+                    unitPrice,
+                    amount,
+                    confidence));
             }
             catch (Exception ex)
             {
@@ -164,7 +219,7 @@ public class AzureOcrMapper
             }
         }
 
-        return items;
+        return _lineItemResolver.Resolve(candidates, expectedSubtotal, currency);
     }
 
     // ── Field Extractors ───────────────────────────────────────────────────
@@ -175,7 +230,7 @@ public class AzureOcrMapper
     {
         if (fields.TryGetValue(fieldName, out var field) &&
             field.FieldType == DocumentFieldType.String)
-            return field.Value.AsString();
+            return field.ValueString;
 
         return null;
     }
@@ -187,12 +242,12 @@ public class AzureOcrMapper
     {
         if (!fields.TryGetValue(fieldName, out var field)) return null;
 
-        return field.FieldType switch
-        {
-            DocumentFieldType.String  => field.Value.AsString(),
-            DocumentFieldType.Address => field.Content,
-            _                         => null
-        };
+        if (field.FieldType == DocumentFieldType.String)
+            return field.ValueString;
+        if (field.FieldType == DocumentFieldType.Address)
+            return field.Content;
+
+        return null;
     }
 
     /// Maneja Double, Int64 y Currency — facturas peruanas usan Currency type
@@ -202,13 +257,154 @@ public class AzureOcrMapper
     {
         if (!fields.TryGetValue(fieldName, out var field)) return null;
 
-        return field.FieldType switch
+        if (field.FieldType == DocumentFieldType.Double && field.ValueDouble.HasValue)
+            return (decimal)field.ValueDouble.Value;
+        if (field.FieldType == DocumentFieldType.Int64 && field.ValueInt64.HasValue)
+            return field.ValueInt64.Value;
+        if (field.FieldType == DocumentFieldType.Currency)
+            return (decimal)field.ValueCurrency.Amount;
+
+        return null;
+    }
+
+    private static string? GetCurrencyCode(
+        IReadOnlyDictionary<string, DocumentField> fields,
+        string fieldName)
+    {
+        if (!fields.TryGetValue(fieldName, out var field) ||
+            field.FieldType != DocumentFieldType.Currency)
+            return null;
+
+        var currency = field.ValueCurrency;
+        return currency.CurrencyCode ?? currency.CurrencySymbol;
+    }
+
+    private static float GetMinimumKnownConfidence(
+        IReadOnlyDictionary<string, DocumentField> fields,
+        params string[] fieldNames)
+    {
+        var values = fieldNames
+            .Where(fields.ContainsKey)
+            .Select(name => fields[name].Confidence)
+            .Where(confidence => confidence.HasValue)
+            .Select(confidence => confidence!.Value)
+            .ToList();
+
+        return values.Count == 0 ? 0.5f : values.Min();
+    }
+
+    private static IReadOnlyList<OcrFieldConfidence> BuildFieldConfidences(
+        IReadOnlyDictionary<string, DocumentField> fields)
+    {
+        var confidences = new List<OcrFieldConfidence>();
+
+        AddIfAvailable(confidences, "InvoiceId", GetSelectedFieldConfidence(fields, "InvoiceId", "InvoiceNumber"));
+        AddIfAvailable(confidences, "InvoiceDate", GetSelectedFieldConfidence(fields, "InvoiceDate"));
+        AddIfAvailable(confidences, "DueDate", GetSelectedFieldConfidence(fields, "DueDate"));
+        AddIfAvailable(confidences, "IssuerTaxId", GetSelectedFieldConfidence(fields, "VendorTaxId"));
+        AddIfAvailable(confidences, "IssuerName", GetSelectedFieldConfidence(fields, "VendorAddressRecipient", "VendorName"), critical: false);
+        AddIfAvailable(confidences, "PayerTaxId", GetSelectedFieldConfidence(fields, "CustomerTaxId"));
+        AddIfAvailable(confidences, "PayerName", GetSelectedFieldConfidence(fields, "CustomerName", "CustomerAddressRecipient"), critical: false);
+        AddIfAvailable(confidences, "InvoiceTotal", GetSelectedFieldConfidence(fields, "InvoiceTotal", "AmountDue"));
+        AddIfAvailable(confidences, "SubTotal", GetSelectedFieldConfidence(fields, "SubTotal"));
+        AddIfAvailable(confidences, "Items", GetItemsMinimumConfidence(fields), critical: false);
+
+        return confidences;
+    }
+
+    private static float? GetSelectedFieldConfidence(
+        IReadOnlyDictionary<string, DocumentField> fields,
+        params string[] fieldNames)
+    {
+        foreach (var fieldName in fieldNames)
         {
-            DocumentFieldType.Double   => (decimal)field.Value.AsDouble(),
-            DocumentFieldType.Int64    => field.Value.AsInt64(),
-            DocumentFieldType.Currency => (decimal)field.Value.AsCurrency().Amount,
-            _                          => null
-        };
+            if (fields.TryGetValue(fieldName, out var field))
+                return field.Confidence;
+        }
+
+        return null;
+    }
+
+    private static float? GetItemsMinimumConfidence(
+        IReadOnlyDictionary<string, DocumentField> fields)
+    {
+        if (!fields.TryGetValue("Items", out var itemsField) ||
+            itemsField.FieldType != DocumentFieldType.List)
+            return null;
+
+        var confidences = itemsField.ValueList
+            .Where(item => item.FieldType == DocumentFieldType.Dictionary)
+            .SelectMany(item => item.ValueDictionary.Values)
+            .Where(field => field.Confidence.HasValue)
+            .Select(field => field.Confidence!.Value)
+            .ToList();
+
+        return confidences.Count == 0 ? null : confidences.Min();
+    }
+
+    private static void AddIfAvailable(
+        ICollection<OcrFieldConfidence> target,
+        string field,
+        float? confidence,
+        bool critical = true)
+    {
+        if (confidence.HasValue)
+            target.Add(new OcrFieldConfidence(field, confidence.Value, critical));
+    }
+
+    private static IReadOnlyList<string> BuildMissingConfidenceWarnings(
+        IReadOnlyCollection<OcrFieldConfidence> confidences)
+    {
+        string[] criticalFields =
+        [
+            "InvoiceId", "InvoiceDate", "DueDate", "IssuerTaxId", "IssuerName",
+            "PayerTaxId", "PayerName", "InvoiceTotal", "SubTotal"
+        ];
+
+        return criticalFields
+            .Where(field => confidences.All(confidence => confidence.Field != field))
+            .Select(field => $"Azure extrajo '{field}', pero no informó su nivel de confianza.")
+            .ToList();
+    }
+
+    private static string RequireText(string? value, string errorMessage)
+    {
+        if (!string.IsNullOrWhiteSpace(value)) return value;
+
+        throw new OcrProcessingException(
+            errorMessage,
+            OcrErrorCode.InvalidDocument,
+            isTransient: false);
+    }
+
+    private static (string LegalName, string? TradeName) ExtractIssuerNames(
+        IReadOnlyDictionary<string, DocumentField> fields)
+    {
+        var rawName = GetStringField(fields, "VendorAddressRecipient")
+                      ?? GetStringField(fields, "VendorName");
+        var lines = (rawName ?? string.Empty)
+            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(SanitizeText)
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .ToList();
+
+        if (lines.Count > 1)
+        {
+            var possibleTradeName = lines[0];
+            var possibleLegalName = string.Join(" ", lines.Skip(1));
+
+            if (!LegalEntityMarkerPattern.IsMatch(possibleTradeName) &&
+                LegalEntityMarkerPattern.IsMatch(possibleLegalName))
+            {
+                return (
+                    RequireText(possibleLegalName, "No se pudo extraer la razón social del emisor."),
+                    possibleTradeName);
+            }
+        }
+
+        return (
+            RequireText(SanitizeText(rawName), "No se pudo extraer la razón social del emisor."),
+            null);
     }
 
     private static DateTime? GetDateField(
@@ -216,9 +412,10 @@ public class AzureOcrMapper
         string fieldName)
     {
         if (fields.TryGetValue(fieldName, out var field) &&
-            field.FieldType == DocumentFieldType.Date)
+            field.FieldType == DocumentFieldType.Date &&
+            field.ValueDate.HasValue)
         {
-            var d = field.Value.AsDate();
+            var d = field.ValueDate.Value;
             return new DateTime(d.Year, d.Month, d.Day, 0, 0, 0, DateTimeKind.Utc);
         }
         return null;
@@ -284,11 +481,15 @@ public class AzureOcrMapper
             .Select(l => l.Content));
 
         if (content.Contains("NUEVOS SOLES", StringComparison.OrdinalIgnoreCase) ||
-            content.Contains("S/.", StringComparison.OrdinalIgnoreCase))
+            content.Contains("SOLES", StringComparison.OrdinalIgnoreCase) ||
+            content.Contains("PEN", StringComparison.OrdinalIgnoreCase) ||
+            content.Contains("S/", StringComparison.OrdinalIgnoreCase))
             return "PEN";
 
         if (content.Contains("DOLARES", StringComparison.OrdinalIgnoreCase) ||
-            content.Contains("USD", StringComparison.OrdinalIgnoreCase))
+            content.Contains("DÓLARES", StringComparison.OrdinalIgnoreCase) ||
+            content.Contains("USD", StringComparison.OrdinalIgnoreCase) ||
+            content.Contains("US$", StringComparison.OrdinalIgnoreCase))
             return "USD";
 
         return "PEN";
@@ -298,10 +499,18 @@ public class AzureOcrMapper
 
     private static (string Series, string Number) ParseInvoiceNumber(string invoiceId)
     {
-        var parts = invoiceId.Split('-');
-        return parts.Length == 2
-            ? (parts[0].Trim(), parts[1].Trim())
-            : ("F001", invoiceId);
+        var match = FiscalIdentityPattern.Match(invoiceId);
+        if (match.Success)
+        {
+            return (
+                match.Groups["series"].Value.ToUpperInvariant(),
+                match.Groups["number"].Value);
+        }
+
+        throw new OcrProcessingException(
+            $"El número fiscal '{invoiceId}' no tiene un formato válido de serie y correlativo.",
+            OcrErrorCode.InvalidDocument,
+            isTransient: false);
     }
 
     private static Currency ParseCurrency(string currencyCode)
@@ -330,12 +539,12 @@ public class AzureOcrMapper
 
     private void LogRawFields(IReadOnlyDictionary<string, DocumentField> fields)
     {
-        if (!_logger.IsEnabled(LogLevel.Warning)) return;
+        if (!_logger.IsEnabled(LogLevel.Debug)) return;
 
-        _logger.LogWarning("=== AZURE RAW FIELDS ===");
+        _logger.LogDebug("=== AZURE RAW FIELDS (development diagnostics) ===");
         foreach (var (key, field) in fields)
         {
-            _logger.LogWarning(
+            _logger.LogDebug(
                 "Field: {Key} | Type: {Type} | Value: {Value} | Confidence: {Conf:P0}",
                 key, field.FieldType, field.Content, field.Confidence ?? 0);
         }
@@ -344,7 +553,10 @@ public class AzureOcrMapper
     private static string SanitizeText(string? text) =>
             string.IsNullOrWhiteSpace(text)
                 ? string.Empty
-                : Regex.Replace(text.Replace("\n", " ").Replace("\r", " "), @"\s{2,}", " ").Trim();
+                : Regex.Replace(
+                    text.Replace("\n", " ").Replace("\r", " ").Replace('`', ' '),
+                    @"\s{2,}",
+                    " ").Trim();
         
     
 }
