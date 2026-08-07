@@ -16,6 +16,12 @@
 
 ## Notas de la sesión
 
+- Integrado `origin/develop` en `refactor/ocr-implementation-improvements` respetando el nuevo
+  proveedor `S3StorageService`, la selección MinIO/AWS, los health checks y el worker OCR.
+- Adaptado el OCR mejorado para leer el documento mediante `IStorageService`, validar consistencia
+  y publicar `InvoiceEligibleForFundingIntegrationEvent` solo cuando la factura es elegible.
+- Eliminados `upload-local` y el adapter MinIO anterior para no reintroducir almacenamiento paralelo.
+- El proyecto de pruebas OCR fue incorporado a `verify.ps1`.
 - La feature se prioriza explícitamente por indicación del usuario, aunque #3 siga pendiente.
 - Decisiones acordadas: MinIO en desarrollo, AWS S3 en producción con access keys configuradas por
   entorno, y bucket AWS aprovisionado por IaC. Azure Blob Storage queda fuera de alcance.
@@ -26,5 +32,6 @@
 
 ## Bloqueos
 
-- No se ejecutó `verify.ps1` por indicación explícita del usuario; el entorno tampoco tiene SDK de
-  .NET disponible. Falta una comprobación real contra un bucket S3 preaprovisionado.
+- `verify.ps1` terminó correctamente con build y 12/12 pruebas; no quedan paquetes NuGet vulnerables.
+- La verificación end-to-end contra MinIO/AWS S3 no pudo ejecutarse en esta sesión porque Docker
+  Desktop no está iniciado y no hay credenciales de Azure OCR configuradas en User Secrets.

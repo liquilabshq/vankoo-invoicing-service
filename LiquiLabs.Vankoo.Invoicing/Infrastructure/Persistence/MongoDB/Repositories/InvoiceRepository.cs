@@ -37,6 +37,9 @@ public class InvoiceRepository : IInvoiceRepository
         return await _collection.Find(filter).FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<Invoice>> GetAllAsync(CancellationToken cancellationToken = default)
+        => await _collection.Find(Builders<Invoice>.Filter.Empty).ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<Invoice>> GetByMypeIdAsync(MypeId mypeId, CancellationToken cancellationToken = default)
     {
         var filter = Builders<Invoice>.Filter.Eq(x => x.MypeId, mypeId);
@@ -52,6 +55,30 @@ public class InvoiceRepository : IInvoiceRepository
     public async Task<bool> ExistsAsync(InvoiceId id, CancellationToken cancellationToken = default)
     {
         var filter = Builders<Invoice>.Filter.Eq(x => x.Id, id);
+        return await _collection.Find(filter).AnyAsync(cancellationToken);
+    }
+
+    public async Task<bool> ExistsByContentHashAsync(
+        string contentHash,
+        CancellationToken cancellationToken = default)
+    {
+        var filter = Builders<Invoice>.Filter.Eq(x => x.Document.ContentHash, contentHash);
+        return await _collection.Find(filter).AnyAsync(cancellationToken);
+    }
+
+    public async Task<bool> ExistsByFiscalIdentityAsync(
+        RucNumber issuerRuc,
+        string series,
+        string number,
+        InvoiceId excludingInvoiceId,
+        CancellationToken cancellationToken = default)
+    {
+        var filter = Builders<Invoice>.Filter.And(
+            Builders<Invoice>.Filter.Eq(x => x.IssuerData!.Ruc, issuerRuc),
+            Builders<Invoice>.Filter.Eq(x => x.Metadata!.InvoiceSeries, series),
+            Builders<Invoice>.Filter.Eq(x => x.Metadata!.InvoiceNumber, number),
+            Builders<Invoice>.Filter.Ne(x => x.Id, excludingInvoiceId));
+
         return await _collection.Find(filter).AnyAsync(cancellationToken);
     }
 }

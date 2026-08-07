@@ -5,12 +5,13 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+        <UserSecretsId>liquilabs-vankoo-invoicing-dev</UserSecretsId>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="AspNetCore.HealthChecks.Kafka" Version="9.0.0" />
         <PackageReference Include="AspNetCore.HealthChecks.MongoDb" Version="9.0.0" />
-        <PackageReference Include="Azure.AI.FormRecognizer" Version="4.1.0" />
+        <PackageReference Include="Azure.AI.DocumentIntelligence" Version="1.0.0" />
         <PackageReference Include="Confluent.Kafka" Version="2.13.1" />
         <!-- Paquete de MongoDB para .NET -->
         <PackageReference Include="AWSSDK.S3" Version="4.0.18.6" />
@@ -25,9 +26,13 @@
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.3" />
         <!-- Paquete para generar documentación OpenAPI (Swagger) para ASP.NET Core -->
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3" />
+        <!-- Overrides transitivos con correcciones de seguridad compatibles. -->
+        <PackageReference Include="Microsoft.OpenApi" Version="2.11.0" />
+        <PackageReference Include="SharpCompress" Version="0.50.0" />
+        <PackageReference Include="Snappier" Version="1.3.1" />
         <!-- Alternativa a Swashbuckle para generar documentación OpenAPI (Swagger) para ASP.NET Core -->
         <PackageReference Include="Scalar.AspNetCore" Version="2.12.40" />
-        <PackageReference Include="Steeltoe.Discovery.Eureka" Version="4.1.0" />
+        <PackageReference Include="Steeltoe.Discovery.Eureka" Version="4.2.0" />
     </ItemGroup>
 
     <ItemGroup>

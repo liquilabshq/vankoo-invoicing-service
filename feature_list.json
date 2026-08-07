@@ -3,7 +3,7 @@
   "description": "Microservicio de gestión de facturas del ecosistema Vankoo. Clean Architecture + DDD + CQRS sobre .NET 10, MongoDB, MinIO, Kafka y Azure AI Document Intelligence.",
   "rules": {
     "one_feature_at_a_time": true,
-    "require_tests_to_close": false,
+    "require_tests_to_close": true,
     "valid_status": [
       "pending",
       "in_progress",
@@ -11,7 +11,7 @@
       "blocked"
     ]
   },
-  "notes": "require_tests_to_close esta en false porque el repo todavia no tiene proyecto de tests (ver docs/verification.md). Cambiar a true en cuanto exista LiquiLabs.Vankoo.Invoicing.Tests.",
+  "notes": "La solucion incluye LiquiLabs.Vankoo.Invoicing.Tests y verify.ps1 ejecuta sus pruebas.",
   "features": [
     {
       "id": 1,

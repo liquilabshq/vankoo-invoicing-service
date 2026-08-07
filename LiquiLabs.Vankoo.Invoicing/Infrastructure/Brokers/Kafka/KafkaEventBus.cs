@@ -30,7 +30,7 @@ public sealed class KafkaEventBus : IEventBus, IDisposable
 
         _producer = new ProducerBuilder<string, string>(config).Build();
     }
-    
+
     //ME PARECE QUE SE ESTA CREANDO EL TOPICO DINAMICAMENTE
     //ESTO EN PRODUCCION ES UNA MALA PRACTICA PORQUE LOS TOPICOS DEBERIAN SER PREDEFINIDOS Y CONFIGURADOS EN EL CLUSTER DE KAFKA,
     //NO CREADOS DINAMICAMENTE DESDE EL CODIGO

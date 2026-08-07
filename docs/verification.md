@@ -1,10 +1,10 @@
 # verification.md — Cómo verificar que tu trabajo funciona
 
-## Estado actual: solo build
+## Estado actual: build y pruebas automatizadas
 
-Este repo **todavía no tiene proyecto de tests** (no hay ningún `.Tests.csproj` en la solución).
-Por eso, hoy, "verde" significa **compila sin errores**, nada más. `feature_list.json` refleja esto
-con `"rules.require_tests_to_close": false`.
+La solución incluye `LiquiLabs.Vankoo.Invoicing.Tests`. Por eso, "verde" significa que restaura,
+compila y ejecuta todas las pruebas sin errores. `feature_list.json` refleja esto con
+`"rules.require_tests_to_close": true`.
 
 Verificación estándar:
 
@@ -12,17 +12,8 @@ Verificación estándar:
 ./verify.ps1
 ```
 
-Esto corre `dotnet restore` + `dotnet build LiquiLabs.Vankoo.Invoicing.sln`. Si termina con código de
+Esto corre `dotnet restore`, `dotnet build` y `dotnet test` sobre la solución. Si termina con código de
 salida distinto de 0, la sesión se considera **bloqueada** — no se puede declarar ninguna feature `done`.
-
-## Cuando exista un proyecto de tests
-
-En cuanto se cree `LiquiLabs.Vankoo.Invoicing.Tests` (xUnit recomendado, ya que es el estándar del
-ecosistema .NET y se integra directo con `dotnet test`):
-
-1. Descomentar el bloque `dotnet test` en `verify.ps1`.
-2. Cambiar `"require_tests_to_close"` a `true` en `feature_list.json`.
-3. Añadir el checkpoint correspondiente en `CHECKPOINTS.md`.
 
 ## Verificación extendida (manual, no automatizada por verify.ps1)
 

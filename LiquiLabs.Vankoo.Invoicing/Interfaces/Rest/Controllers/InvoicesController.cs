@@ -1,6 +1,9 @@
+using LiquiLabs.Vankoo.Invoicing.Application.Commands.DeleteAllInvoices;
+using LiquiLabs.Vankoo.Invoicing.Application.Commands.DeleteInvoice;
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.OcrProcessing.ProcessOcrSynchronously;
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.UploadInvoice;
 using LiquiLabs.Vankoo.Invoicing.Application.Queries.DownloadInvoiceFile;
+using LiquiLabs.Vankoo.Invoicing.Application.Queries.GetInvoiceById;
 using LiquiLabs.Vankoo.Invoicing.Domain.ValueObjects;
 using LiquiLabs.Vankoo.Invoicing.Interfaces.Rest.Dto.Requests;
 using LiquiLabs.Vankoo.Invoicing.Interfaces.Rest.Dto.Responses;
@@ -11,36 +14,39 @@ namespace LiquiLabs.Vankoo.Invoicing.Interfaces.Rest.Controllers;
 
 [ApiController]
 [Route("api/v1/[controller]")]
-public class InvoicesController : ControllerBase
+public sealed class InvoicesController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly IWebHostEnvironment _environment;
 
-    public InvoicesController(IMediator mediator)
+    public InvoicesController(IMediator mediator, IWebHostEnvironment environment)
     {
         _mediator = mediator;
+        _environment = environment;
     }
 
-    // POST: api/v1/invoices
     [HttpPost]
     [Consumes("multipart/form-data")]
+    [RequestSizeLimit(10 * 1024 * 1024)]
     [ProducesResponseType(typeof(InvoiceResource), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> UploadInvoice(
         [FromForm] UploadInvoiceResource request,
-        CancellationToken ct)
+        CancellationToken cancellationToken)
     {
-        //TODO REEMPLAZAR POR EL MYPEID REAL
+        await using var stream = request.File.OpenReadStream();
         var command = new UploadInvoiceCommand
         {
+            // TODO: Replace with the authenticated MYPE identifier when JWT support is implemented.
             MypeId = MypeId.NewId().ToString(),
             OriginalName = request.File.FileName,
             ContentType = request.File.ContentType,
             FileSizeBytes = request.File.Length,
-            FileStream = request.File.OpenReadStream()
+            FileStream = stream
         };
 
-        var invoiceId = await _mediator.Send(command, ct);
+        var invoiceId = await _mediator.Send(command, cancellationToken);
 
         return CreatedAtAction(
             nameof(DownloadInvoiceFile),
@@ -48,25 +54,66 @@ public class InvoicesController : ControllerBase
             new InvoiceResource { InvoiceId = invoiceId });
     }
 
-    // GET: api/v1/invoices/{id}/file
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetInvoiceById(
+        [FromRoute] string id,
+        CancellationToken cancellationToken)
+    {
+        var response = await _mediator.Send(new GetInvoiceByIdQuery(id), cancellationToken);
+        return Ok(response);
+    }
+
     [HttpGet("{id}/file")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> DownloadInvoiceFile([FromRoute] string id, CancellationToken ct)
+    public async Task<IActionResult> DownloadInvoiceFile(
+        [FromRoute] string id,
+        CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new DownloadInvoiceFileQuery(id), ct);
+        var result = await _mediator.Send(new DownloadInvoiceFileQuery(id), cancellationToken);
         return File(result.Stream, result.ContentType, result.FileName);
     }
 
-    // POST: api/v1/invoices/{id}/ocr/sync
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteInvoice(
+        [FromRoute] string id,
+        CancellationToken cancellationToken)
+    {
+        await _mediator.Send(new DeleteInvoiceCommand(id), cancellationToken);
+        return NoContent();
+    }
+
+    [HttpDelete]
+    public async Task<IActionResult> DeleteAllInvoices(
+        [FromQuery] bool confirm,
+        CancellationToken cancellationToken)
+    {
+        if (!_environment.IsDevelopment())
+            return NotFound();
+
+        if (!confirm)
+        {
+            return BadRequest(new
+            {
+                ErrorCode = "DELETION_CONFIRMATION_REQUIRED",
+                Message = "Set confirm=true to delete every invoice and its stored document."
+            });
+        }
+
+        var deletedCount = await _mediator.Send(new DeleteAllInvoicesCommand(), cancellationToken);
+        return Ok(new { DeletedCount = deletedCount });
+    }
+
     [HttpPost("{id}/ocr/sync")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> ProcessOcrSync([FromRoute] string id, CancellationToken ct)
+    public async Task<IActionResult> ProcessOcrSync(
+        [FromRoute] string id,
+        CancellationToken cancellationToken)
     {
-        await _mediator.Send(new ProcessOcrSynchronouslyCommand(id), ct);
-        return Ok(new { Message = "OCR síncrono procesado correctamente." });
+        var response = await _mediator.Send(
+            new ProcessOcrSynchronouslyCommand(id),
+            cancellationToken);
+        return Ok(response);
     }
 }
-
-
