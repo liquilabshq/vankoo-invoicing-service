@@ -102,18 +102,6 @@ builder.Services.AddRouting(options => options.LowercaseUrls = true);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
-// El gateway todavia no enruta invoicing (ver .env.example de vankoo-mype-web), asi
-// que en local el frontend le habla directo a este puerto — y eso cruza origenes.
-// Solo para no-Production, igual que Scalar/OpenAPI mas abajo.
-const string LocalWebClientsCorsPolicy = "LocalWebClients";
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy(LocalWebClientsCorsPolicy, policy =>
-        policy.WithOrigins("http://localhost:5173")
-            .AllowAnyHeader()
-            .AllowAnyMethod());
-});
-
 // 7. MediatR + ValidationBehavior pipeline
 builder.Services.AddMediatR(config =>
 {
@@ -147,9 +135,6 @@ if (!app.Environment.IsProduction())
 }
 
 app.UseExceptionHandler();
-
-if (!app.Environment.IsProduction())
-    app.UseCors(LocalWebClientsCorsPolicy);
 
 // Solo redirigir a HTTPS en desarrollo local (en Docker se usa solo HTTP en el puerto 8080)
 if (app.Environment.IsDevelopment())

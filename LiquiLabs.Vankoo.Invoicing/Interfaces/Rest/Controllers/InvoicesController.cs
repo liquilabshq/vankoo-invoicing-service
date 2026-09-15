@@ -1,7 +1,6 @@
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.OcrProcessing.ProcessOcrSynchronously;
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.UploadInvoice;
 using LiquiLabs.Vankoo.Invoicing.Application.Queries.DownloadInvoiceFile;
-using LiquiLabs.Vankoo.Invoicing.Domain.ValueObjects;
 using LiquiLabs.Vankoo.Invoicing.Interfaces.Rest.Dto.Requests;
 using LiquiLabs.Vankoo.Invoicing.Interfaces.Rest.Dto.Responses;
 using MediatR;
@@ -30,10 +29,15 @@ public class InvoicesController : ControllerBase
         [FromForm] UploadInvoiceResource request,
         CancellationToken ct)
     {
-        //TODO REEMPLAZAR POR EL MYPEID REAL
+        // El API Gateway valida el JWT y agrega este header (BearerAuthorizationRequest
+        // en vankoo-api-gateway) antes de reenviar — sin esa capa, no llega.
+        var mypeId = Request.Headers["X-User-Id"].ToString();
+        if (string.IsNullOrWhiteSpace(mypeId))
+            return Unauthorized();
+
         var command = new UploadInvoiceCommand
         {
-            MypeId = MypeId.NewId().ToString(),
+            MypeId = mypeId,
             OriginalName = request.File.FileName,
             ContentType = request.File.ContentType,
             FileSizeBytes = request.File.Length,
