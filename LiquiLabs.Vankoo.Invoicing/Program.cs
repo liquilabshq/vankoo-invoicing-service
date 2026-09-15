@@ -1,7 +1,11 @@
 using FluentValidation;
+using Amazon;
 using LiquiLabs.Vankoo.Invoicing.Application.Behaviors;
 using LiquiLabs.Vankoo.Invoicing.Application.Interfaces;
+using LiquiLabs.Vankoo.Invoicing.Application.Internal.Files;
+using LiquiLabs.Vankoo.Invoicing.Application.Internal.Ocr;
 using LiquiLabs.Vankoo.Invoicing.Domain.Repositories;
+using LiquiLabs.Vankoo.Invoicing.Domain.Services;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Brokers.Kafka;
 using Amazon.Runtime;
 using Amazon.S3;
@@ -39,6 +43,8 @@ builder.Services.Configure<AzureOcrSettings>(builder.Configuration.GetSection("A
 builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings"));
 builder.Services.Configure<OcrWorkerSettings>(builder.Configuration.GetSection("OcrWorkerSettings"));
 builder.Services.Configure<MinioSettings>(builder.Configuration.GetSection("MinioSettings"));
+builder.Services.Configure<AwsS3Settings>(builder.Configuration.GetSection("AwsS3Settings"));
+builder.Services.Configure<StorageProviderSettings>(builder.Configuration.GetSection("StorageProviderSettings"));
 
 // Límite de tamaño de archivo: el framework rechaza requests que superen esto antes de llegar al dominio
 builder.Services.Configure<KestrelServerOptions>(options =>
@@ -50,19 +56,33 @@ builder.Services.Configure<FormOptions>(options =>
     options.MultipartBodyLengthLimit = 10 * 1024 * 1024; // 10MB
 });
 
-// 3. CLIENTE S3 (MinIO)
+// 3. CLIENTE S3
+builder.Services.AddSingleton<ObjectStorageRuntimeSettings>(sp =>
+    ObjectStorageSettingsFactory.Create(
+        sp.GetRequiredService<IOptions<StorageProviderSettings>>().Value,
+        sp.GetRequiredService<IOptions<MinioSettings>>().Value,
+        sp.GetRequiredService<IOptions<AwsS3Settings>>().Value));
+
 builder.Services.AddSingleton<IAmazonS3>(sp =>
 {
-    var settings = sp.GetRequiredService<IOptions<MinioSettings>>().Value;
+    var settings = sp.GetRequiredService<ObjectStorageRuntimeSettings>();
     var credentials = new BasicAWSCredentials(settings.AccessKey, settings.SecretKey);
-    var config = new AmazonS3Config
+    var config = settings.Provider switch
     {
-        ServiceURL = $"{(settings.UseSSL ? "https" : "http")}://{settings.Endpoint}",
-        ForcePathStyle = true  // Requerido por MinIO
+        StorageProvider.Minio => new AmazonS3Config
+        {
+            ServiceURL = $"{(settings.UseSsl ? "https" : "http")}://{settings.Endpoint}",
+            ForcePathStyle = true
+        },
+        StorageProvider.AwsS3 => new AmazonS3Config
+        {
+            RegionEndpoint = RegionEndpoint.GetBySystemName(settings.Region)
+        },
+        _ => throw new InvalidOperationException($"Unsupported storage provider '{settings.Provider}'.")
     };
     return new AmazonS3Client(credentials, config);
 });
-builder.Services.AddScoped<IStorageService, MinioStorageService>();
+builder.Services.AddScoped<IStorageService, S3StorageService>();
 
 // 4. HEALTH CHECKS
 // MongoDb 9.x resuelve MongoClient desde DI — registramos el singleton aquí.
@@ -85,9 +105,9 @@ builder.Services.AddHealthChecks()
         },
         failureStatus: HealthStatus.Degraded,
         tags: ["ready"])
-    // MinIO: degradado — las subidas fallarían pero el servicio sigue en pie
-    .AddCheck<MinioHealthCheck>(
-        name: "minio",
+    // Object storage: degradado — las subidas fallarían pero el servicio sigue en pie
+    .AddCheck<S3HealthCheck>(
+        name: "object-storage",
         failureStatus: HealthStatus.Degraded,
         tags: ["ready"]);
 
@@ -114,7 +134,10 @@ builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 builder.Services.AddScoped<IInvoiceRepository, InvoiceRepository>();
 builder.Services.AddScoped<IOcrTaskRepository, OcrTaskRepository>();
 builder.Services.AddScoped<IOcrService, AzureOcrService>();
-builder.Services.AddScoped<IStorageService, MinioStorageService>();
+builder.Services.AddSingleton<InvoiceFileInspector>();
+builder.Services.AddSingleton<InvoiceLineItemResolver>();
+builder.Services.AddSingleton<InvoiceConsistencyValidator>();
+builder.Services.AddScoped<OcrResultProcessor>();
 builder.Services.AddSingleton<AzureOcrMapper>();
 builder.Services.AddSingleton<MongoContext>();
 builder.Services.AddSingleton<IEventBus, KafkaEventBus>();

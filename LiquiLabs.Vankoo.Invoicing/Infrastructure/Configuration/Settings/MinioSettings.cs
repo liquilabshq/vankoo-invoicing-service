@@ -7,4 +7,5 @@ public class MinioSettings
     public string SecretKey { get; set; } = string.Empty;
     public string BucketName { get; set; } = string.Empty;
     public bool UseSSL { get; set; }
+    public bool AutoCreateBucket { get; set; } = true;
 }

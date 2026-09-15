@@ -23,6 +23,15 @@ public enum InvoiceStatus
     /// <summary>Publicada y visible en el marketplace</summary> Creo q no???
     PUBLISHED = 7,
 
+    /// <summary>Datos extraídos y consistentes; lista para evaluación de riesgo</summary>
+    CONSISTENCY_PASSED = 8,
+
+    /// <summary>Hay baja confianza o ambigüedades que impiden avanzar automáticamente</summary>
+    REQUIRES_REVIEW = 9,
+
+    /// <summary>La factura es legible pero no es elegible para financiamiento</summary>
+    NOT_ELIGIBLE = 10,
+
     /// <summary>Rechazada en cualquier paso del proceso</summary>
     REJECTED = 99
 }

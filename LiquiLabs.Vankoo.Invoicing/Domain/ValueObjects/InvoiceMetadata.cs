@@ -47,8 +47,11 @@ public sealed record InvoiceMetadata
         => new(invoiceSeries, invoiceNumber, issueDate, dueDate, currency, ocrConfidence);
 
     public string GetFullInvoiceNumber() => $"{InvoiceSeries}-{InvoiceNumber}";
-    public int GetDaysUntilDue() => (DueDate.Date - DateTime.UtcNow.Date).Days;
-    public bool IsExpired() => DateTime.UtcNow.Date > DueDate.Date;
+    public int GetDaysUntilDue(DateTime? asOf = null)
+        => (DueDate.Date - (asOf ?? DateTime.UtcNow).Date).Days;
+
+    public bool IsExpired(DateTime? asOf = null)
+        => (asOf ?? DateTime.UtcNow).Date > DueDate.Date;
     public bool HasAcceptableConfidence(float threshold = 0.80f) => OcrConfidence >= threshold;
     public int GetOcrConfidencePercentage() => (int)(OcrConfidence * 100);
 }
