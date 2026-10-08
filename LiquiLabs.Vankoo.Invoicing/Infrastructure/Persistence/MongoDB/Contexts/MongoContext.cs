@@ -14,6 +14,6 @@ public class MongoContext
         _database = client.GetDatabase(settings.Value.DatabaseName);
     }
 
-    public IMongoCollection<T> GetCollection<T>(string name) 
+    public IMongoCollection<T> GetCollection<T>(string name)
         => _database.GetCollection<T>(name);
 }
