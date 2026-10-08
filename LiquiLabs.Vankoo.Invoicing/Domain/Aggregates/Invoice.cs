@@ -116,6 +116,15 @@ public sealed class Invoice
         UpdatedAt = DateTime.UtcNow;
     }
 
+    public void MarkPublished()
+    {
+        if (Status != InvoiceStatus.CONSISTENCY_PASSED)
+            throw new InvalidInvoiceStateException(Status, InvoiceStatus.CONSISTENCY_PASSED, "mark as published");
+
+        Status = InvoiceStatus.PUBLISHED;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
     public void MarkIntegrationEventPublished()
     {
         IntegrationEventPublicationStatus = IntegrationEventPublicationStatus.PUBLISHED;

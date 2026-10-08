@@ -41,6 +41,7 @@ builder.Services.Configure<DbSettings>(builder.Configuration.GetSection("DbSetti
 builder.Services.Configure<TokenSettings>(builder.Configuration.GetSection("TokenSettings"));
 builder.Services.Configure<AzureOcrSettings>(builder.Configuration.GetSection("AzureOcrSettings"));
 builder.Services.Configure<KafkaSettings>(builder.Configuration.GetSection("KafkaSettings"));
+builder.Services.Configure<AuctionLifecycleConsumerSettings>(builder.Configuration.GetSection("AuctionLifecycleConsumerSettings"));
 builder.Services.Configure<OcrWorkerSettings>(builder.Configuration.GetSection("OcrWorkerSettings"));
 builder.Services.Configure<MinioSettings>(builder.Configuration.GetSection("MinioSettings"));
 builder.Services.Configure<AwsS3Settings>(builder.Configuration.GetSection("AwsS3Settings"));
@@ -141,6 +142,8 @@ builder.Services.AddScoped<OcrResultProcessor>();
 builder.Services.AddSingleton<AzureOcrMapper>();
 builder.Services.AddSingleton<MongoContext>();
 builder.Services.AddSingleton<IEventBus, KafkaEventBus>();
+builder.Services.AddSingleton<AuctionLifecycleDeadLetterPublisher>();
+builder.Services.AddHostedService<AuctionLifecycleConsumer>();
 builder.Services.AddHostedService<OcrTaskWorker>();
 
 var app = builder.Build();

@@ -10,4 +10,5 @@ public sealed class KafkaSettings
     public string Acks { get; set; } = string.Empty;
     public bool EnableIdempotence { get; set; } = true;
     public int Retries { get; set; }
+    public string ConsumerGroupId { get; set; } = string.Empty;
 }
