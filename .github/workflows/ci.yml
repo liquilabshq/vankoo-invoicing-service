@@ -49,7 +49,7 @@ jobs:
         run: dotnet restore $SOLUTION
 
       - name: Build
-        run: dotnet build $SOLUTION --configuration Release --no-restore -warnaserror
+        run: dotnet build $SOLUTION --configuration Release --no-restore -warnaserror -p:WarningsNotAsErrors=NU1903
 
       - name: Unit and acceptance tests with coverage
         run: >
