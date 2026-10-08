@@ -85,7 +85,7 @@ public class AzureOcrMapper
             SanitizeText(GetStringField(fields, "CustomerName")
                          ?? GetStringField(fields, "CustomerAddressRecipient")),
             "No se pudo extraer el nombre del cliente.");
-        
+
         var payerAddress = SanitizeText(
             GetAddressField(fields, "CustomerAddress")
             ?? GetStringField(fields, "CustomerAddress"));
@@ -99,7 +99,7 @@ public class AzureOcrMapper
         var issuerAddress = SanitizeText(
             GetAddressField(fields, "VendorAddress")
             ?? GetStringField(fields, "VendorAddress"));
-        
+
         // ── Montos ─────────────────────────────────────────────────────────
         var totalAmount = GetDecimalField(fields, "InvoiceTotal")
                        ?? GetDecimalField(fields, "AmountDue")
@@ -197,10 +197,10 @@ public class AzureOcrMapper
             var itemFields = itemField.ValueDictionary;
 
             var description = GetStringField(itemFields, "Description") ?? "Unknown Item";
-            var quantity    = GetDecimalField(itemFields, "Quantity")    ?? 1m;
-            var unitPrice   = GetDecimalField(itemFields, "UnitPrice");
-            var amount      = GetDecimalField(itemFields, "Amount");
-            var confidence  = GetMinimumKnownConfidence(
+            var quantity = GetDecimalField(itemFields, "Quantity") ?? 1m;
+            var unitPrice = GetDecimalField(itemFields, "UnitPrice");
+            var amount = GetDecimalField(itemFields, "Amount");
+            var confidence = GetMinimumKnownConfidence(
                 itemFields,
                 "Description", "Quantity", "UnitPrice", "Amount");
 
@@ -518,8 +518,8 @@ public class AzureOcrMapper
         return currencyCode.ToUpperInvariant() switch
         {
             "PEN" or "S/" or "SOLES" or "NUEVOS SOLES" => Currency.PEN,
-            "USD" or "$"  or "DOLARES"                  => Currency.USD,
-            _                                            => Currency.PEN
+            "USD" or "$" or "DOLARES" => Currency.USD,
+            _ => Currency.PEN
         };
     }
 
@@ -549,7 +549,7 @@ public class AzureOcrMapper
                 key, field.FieldType, field.Content, field.Confidence ?? 0);
         }
     }
-    
+
     private static string SanitizeText(string? text) =>
             string.IsNullOrWhiteSpace(text)
                 ? string.Empty
@@ -557,6 +557,6 @@ public class AzureOcrMapper
                     text.Replace("\n", " ").Replace("\r", " ").Replace('`', ' '),
                     @"\s{2,}",
                     " ").Trim();
-        
-    
+
+
 }

@@ -7,8 +7,8 @@ public class AzureOcrSettings
     public string ApiKey { get; set; } = string.Empty;
     public int PollingTimeoutSeconds { get; set; }
     public int PollingIntervalSeconds { get; set; }
-    
-    
+
+
     public void Validate()
     {
         if (string.IsNullOrWhiteSpace(Endpoint))

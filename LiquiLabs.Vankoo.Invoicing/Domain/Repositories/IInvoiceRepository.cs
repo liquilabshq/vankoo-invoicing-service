@@ -10,11 +10,11 @@ public interface IInvoiceRepository
     Task DeleteAsync(InvoiceId invoiceId, CancellationToken cancellationToken = default);
 
     // ========== QUERIES ==========
-    Task<Invoice?> GetByIdAsync(InvoiceId invoiceId, CancellationToken cancellationToken = default); 
+    Task<Invoice?> GetByIdAsync(InvoiceId invoiceId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Invoice>> GetAllAsync(CancellationToken cancellationToken = default);
     Task<Invoice?> GetByOcrOperationIdAsync(OcrOperationId operationId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Invoice>> GetByMypeIdAsync(MypeId mypeId, CancellationToken cancellationToken = default);
-    Task<bool> ExistsAsync(InvoiceId id, CancellationToken cancellationToken = default); 
+    Task<bool> ExistsAsync(InvoiceId id, CancellationToken cancellationToken = default);
     Task<bool> ExistsByContentHashAsync(string contentHash, CancellationToken cancellationToken = default);
     Task<bool> ExistsByFiscalIdentityAsync(
         RucNumber issuerRuc,
