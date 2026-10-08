@@ -1,5 +1,6 @@
 
 namespace LiquiLabs.Vankoo.Invoicing.Domain.ValueObjects;
+
 public sealed record PayerData
 {
     public RucNumber Ruc { get; init; }
