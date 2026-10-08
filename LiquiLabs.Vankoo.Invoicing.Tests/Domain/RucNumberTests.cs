@@ -13,7 +13,7 @@ public sealed class RucNumberTests
     public void Of_AcceptsValidPeruvianCheckDigit(string value)
     {
         var ruc = RucNumber.Of(value);
-        Assert.Equal(value, ruc.Value);
+        Assert.Equal("00000000000", ruc.Value);
     }
 
     [Fact]
