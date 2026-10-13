@@ -54,6 +54,8 @@ public sealed class InvoicingTestHost : IDisposable
 
     public InvoiceLineItemResolver LineItemResolver => _provider.GetRequiredService<InvoiceLineItemResolver>();
 
+    public IServiceScopeFactory ScopeFactory => _provider.GetRequiredService<IServiceScopeFactory>();
+
     public async Task<TResponse> SendAsync<TResponse>(IRequest<TResponse> request)
     {
         await using var scope = _provider.CreateAsyncScope();
