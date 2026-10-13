@@ -9,6 +9,7 @@ using LiquiLabs.Vankoo.Invoicing.Domain.Services;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Brokers.Kafka;
 using Amazon.Runtime;
 using Amazon.S3;
+using Confluent.Kafka;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Configuration.Settings;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.ExternalServices.Ocr.Azure.Mappers;
@@ -142,7 +143,35 @@ builder.Services.AddScoped<OcrResultProcessor>();
 builder.Services.AddSingleton<AzureOcrMapper>();
 builder.Services.AddSingleton<MongoContext>();
 builder.Services.AddSingleton<IEventBus, KafkaEventBus>();
-builder.Services.AddSingleton<AuctionLifecycleDeadLetterPublisher>();
+builder.Services.AddSingleton<IAuctionLifecycleDeadLetterPublisher>(sp =>
+{
+    var kafka = sp.GetRequiredService<IOptions<KafkaSettings>>().Value;
+    var producer = new ProducerBuilder<string?, string>(new ProducerConfig
+    {
+        BootstrapServers = kafka.BootstrapServers,
+        ClientId = $"{kafka.ClientId}-dlq",
+        Acks = Enum.Parse<Acks>(kafka.Acks, ignoreCase: true),
+        EnableIdempotence = kafka.EnableIdempotence,
+        MessageTimeoutMs = kafka.MessageTimeoutMs,
+        MessageSendMaxRetries = kafka.Retries
+    }).Build();
+    return new AuctionLifecycleDeadLetterPublisher(
+        producer, sp.GetRequiredService<IOptions<AuctionLifecycleConsumerSettings>>());
+});
+builder.Services.AddSingleton<Func<IConsumer<string?, string>>>(sp => () =>
+{
+    var kafka = sp.GetRequiredService<IOptions<KafkaSettings>>().Value;
+    var consumerSettings = sp.GetRequiredService<IOptions<AuctionLifecycleConsumerSettings>>().Value;
+    return new ConsumerBuilder<string?, string>(new ConsumerConfig
+    {
+        BootstrapServers = kafka.BootstrapServers,
+        GroupId = kafka.ConsumerGroupId,
+        ClientId = $"{kafka.ClientId}-consumer",
+        EnableAutoCommit = false,
+        AutoOffsetReset = Enum.Parse<AutoOffsetReset>(consumerSettings.AutoOffsetReset, ignoreCase: true)
+    }).Build();
+});
+builder.Services.AddSingleton<AuctionLifecycleMessageProcessor>();
 builder.Services.AddHostedService<AuctionLifecycleConsumer>();
 builder.Services.AddHostedService<OcrTaskWorker>();
 

@@ -5,29 +5,17 @@ using Microsoft.Extensions.Options;
 
 namespace LiquiLabs.Vankoo.Invoicing.Infrastructure.Brokers.Kafka;
 
-public sealed class AuctionLifecycleDeadLetterPublisher : IDisposable
+public sealed class AuctionLifecycleDeadLetterPublisher : IAuctionLifecycleDeadLetterPublisher, IDisposable
 {
     private readonly IProducer<string?, string> _producer;
     private readonly string _deadLetterTopic;
 
     public AuctionLifecycleDeadLetterPublisher(
-        IOptions<KafkaSettings> kafkaSettings,
-        IOptions<AuctionLifecycleConsumerSettings> consumerSettings)
+        IProducer<string?, string> producer,
+        IOptions<AuctionLifecycleConsumerSettings> settings)
     {
-        var kafka = kafkaSettings.Value;
-        _deadLetterTopic = consumerSettings.Value.DeadLetterTopic;
-
-        var config = new ProducerConfig
-        {
-            BootstrapServers = kafka.BootstrapServers,
-            ClientId = $"{kafka.ClientId}-dlq",
-            Acks = Enum.Parse<Acks>(kafka.Acks, ignoreCase: true),
-            EnableIdempotence = kafka.EnableIdempotence,
-            MessageTimeoutMs = kafka.MessageTimeoutMs,
-            MessageSendMaxRetries = kafka.Retries
-        };
-
-        _producer = new ProducerBuilder<string?, string>(config).Build();
+        _producer = producer;
+        _deadLetterTopic = settings.Value.DeadLetterTopic;
     }
 
     public async Task PublishAsync(
