@@ -51,6 +51,8 @@ public sealed class CompanyKycStatusChangedIntegrationEventTests
     [InlineData("{not json")]
     [InlineData("[]")]
     [InlineData("""{"eventType":"CompanyKycStatusChanged","schemaVersion":2}""")]
+    [InlineData("""{"eventType":"CompanyKycStatusChanged","schemaVersion":1.5}""")]
+    [InlineData("""{"eventType":"CompanyKycStatusChanged","schemaVersion":1,"companyId":"c","userId":"u","kycStatus":"VERIFIED","occurredAt":"2026-10-29T18:00:05Z"}""")]
     [InlineData("""{"eventType":"CompanyKycStatusChanged","schemaVersion":1,"eventId":"e","companyId":"c","userId":"u","kycStatus":"MAYBE","occurredAt":"2026-10-29T18:00:05Z"}""")]
     [InlineData("""{"eventType":"CompanyKycStatusChanged","schemaVersion":1,"eventId":"e","companyId":"c","kycStatus":"VERIFIED","occurredAt":"2026-10-29T18:00:05Z"}""")]
     [InlineData("""{"eventType":"CompanyKycStatusChanged","schemaVersion":1,"eventId":"e","companyId":"c","userId":"u","kycStatus":"VERIFIED","occurredAt":"2026-10-29T18:00:05"}""")]

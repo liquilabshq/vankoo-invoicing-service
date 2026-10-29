@@ -17,7 +17,7 @@ public enum ProfileEventKind
 /// empresa. Contrato: docs/contracts/profile-events.md en vankoo-profile-service. Es el
 /// único evento de ese tópico que lee Invoicing; los demás se saltan.
 /// </summary>
-public sealed record CompanyKycStatusChangedIntegrationEvent(
+public sealed partial record CompanyKycStatusChangedIntegrationEvent(
     string EventId,
     DateTime OccurredAtUtc,
     string CompanyId,
@@ -26,8 +26,6 @@ public sealed record CompanyKycStatusChangedIntegrationEvent(
 {
     public const string EventType = "CompanyKycStatusChanged";
     public const int SchemaVersion = 1;
-
-    private static readonly Regex InstantWithZone = new(@"(Z|[+-]\d{2}:\d{2})$", RegexOptions.Compiled);
 
     private static readonly Dictionary<string, MypeKycStatus> Statuses = new()
     {
@@ -70,7 +68,7 @@ public sealed record CompanyKycStatusChangedIntegrationEvent(
                 return (ProfileEventKind.Invalid, null, "eventId, companyId and userId are required");
             if (status is null || !Statuses.TryGetValue(status, out var kycStatus))
                 return (ProfileEventKind.Invalid, null, $"'{status}' is not a KYC status");
-            if (occurredAt is null || !InstantWithZone.IsMatch(occurredAt) ||
+            if (occurredAt is null || !InstantWithZone().IsMatch(occurredAt) ||
                 !DateTimeOffset.TryParse(occurredAt, CultureInfo.InvariantCulture, out var moment))
                 return (ProfileEventKind.Invalid, null, "occurredAt must be an instant with a time zone");
 
@@ -94,4 +92,7 @@ public sealed record CompanyKycStatusChangedIntegrationEvent(
         !string.IsNullOrWhiteSpace(value.GetString())
             ? value.GetString()
             : null;
+
+    [GeneratedRegex(@"(Z|[+-]\d{2}:\d{2})$", RegexOptions.None, matchTimeoutMilliseconds: 100)]
+    private static partial Regex InstantWithZone();
 }
