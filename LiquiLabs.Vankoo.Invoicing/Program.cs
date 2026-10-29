@@ -143,6 +143,12 @@ builder.Services.AddSingleton<AzureOcrMapper>();
 builder.Services.AddSingleton<MongoContext>();
 builder.Services.AddSingleton<IEventBus, KafkaEventBus>();
 builder.Services.AddHostedService<OcrTaskWorker>();
+builder.Services.AddSingleton<ProfileKycMessageHandler>(sp => new ProfileKycMessageHandler(
+    sp.GetRequiredService<IServiceScopeFactory>(),
+    sp.GetRequiredService<ILogger<ProfileKycMessageHandler>>()));
+builder.Services.AddSingleton<Func<IProfileEventStream>>(sp => () => new KafkaProfileEventStream(
+    sp.GetRequiredService<IOptions<KafkaSettings>>().Value,
+    sp.GetRequiredService<ILogger<KafkaProfileEventStream>>()));
 builder.Services.AddHostedService<ProfileKycStatusConsumer>();
 
 var app = builder.Build();
