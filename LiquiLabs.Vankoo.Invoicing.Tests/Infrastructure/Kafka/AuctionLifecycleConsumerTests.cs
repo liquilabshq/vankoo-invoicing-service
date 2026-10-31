@@ -16,9 +16,11 @@ public sealed class AuctionLifecycleConsumerTests : IDisposable
 
     public void Dispose() => _host.Dispose();
 
-    private AuctionLifecycleConsumer CreateConsumer(FakeConsumer fake, string bootstrapServers = "localhost:9092")
+    private AuctionLifecycleConsumer CreateConsumer(
+        FakeConsumer fake, string bootstrapServers = "localhost:9092", bool enabled = true)
     {
-        var settings = Options.Create(new AuctionLifecycleConsumerSettings { MaxAttempts = 3, RetryDelayMs = 0 });
+        var settings = Options.Create(
+            new AuctionLifecycleConsumerSettings { MaxAttempts = 3, RetryDelayMs = 0, Enabled = enabled });
         var processor = new AuctionLifecycleMessageProcessor(
             _host.ScopeFactory, _deadLetters, settings, NullLogger<AuctionLifecycleMessageProcessor>.Instance);
 
@@ -121,6 +123,18 @@ public sealed class AuctionLifecycleConsumerTests : IDisposable
     {
         var fake = new FakeConsumer();
         var consumer = CreateConsumer(fake, bootstrapServers: "");
+
+        await consumer.StartAsync(CancellationToken.None);
+        await consumer.StopAsync(CancellationToken.None);
+
+        Assert.Empty(fake.Proxy.Calls);
+    }
+
+    [Fact]
+    public async Task StartAsync_DoesNotCreateAConsumerWhenSwitchedOff()
+    {
+        var fake = new FakeConsumer();
+        var consumer = CreateConsumer(fake, enabled: false);
 
         await consumer.StartAsync(CancellationToken.None);
         await consumer.StopAsync(CancellationToken.None);

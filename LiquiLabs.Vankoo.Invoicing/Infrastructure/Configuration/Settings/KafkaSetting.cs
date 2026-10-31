@@ -16,5 +16,4 @@ public sealed class KafkaSettings
     // nuevo en Latest se saltaría los primeros cambios de estado.
     public string ProfileKycAutoOffsetReset { get; set; } = "Earliest";
     public bool ProfileKycConsumerEnabled { get; set; } = true;
-    public string ConsumerGroupId { get; set; } = string.Empty;
 }

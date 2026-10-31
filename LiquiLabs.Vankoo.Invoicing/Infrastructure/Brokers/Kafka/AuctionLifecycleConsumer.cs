@@ -28,6 +28,12 @@ public sealed class AuctionLifecycleConsumer : BackgroundService
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (!_settings.Enabled)
+        {
+            _logger.LogInformation("Consumidor de {Topic} apagado (AuctionLifecycleConsumerSettings:Enabled=false)", _settings.Topic);
+            return Task.CompletedTask;
+        }
+
         if (string.IsNullOrWhiteSpace(_kafkaSettings.BootstrapServers))
         {
             _logger.LogWarning("KafkaSettings:BootstrapServers está vacío; el consumidor de {Topic} no se inicia.", _settings.Topic);

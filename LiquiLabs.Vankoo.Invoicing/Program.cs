@@ -170,7 +170,7 @@ builder.Services.AddSingleton<Func<IConsumer<string?, string>>>(sp => () =>
     return new ConsumerBuilder<string?, string>(new ConsumerConfig
     {
         BootstrapServers = kafka.BootstrapServers,
-        GroupId = kafka.ConsumerGroupId,
+        GroupId = consumerSettings.GroupId,
         ClientId = $"{kafka.ClientId}-consumer",
         EnableAutoCommit = false,
         AutoOffsetReset = Enum.Parse<AutoOffsetReset>(consumerSettings.AutoOffsetReset, ignoreCase: true)
