@@ -6,22 +6,24 @@ public sealed class AuctionLifecycleMessageParserTests
 {
     private const string InvoiceId = "30000000-0000-0000-0000-000000000001";
 
-    [Fact]
-    public void TryGetPublishedInvoiceId_ReturnsInvoiceIdForAuctionPublishedHeader()
+    [Theory]
+    [InlineData("AuctionEvaluated")]
+    [InlineData("AuctionRejected")]
+    [InlineData("AuctionPublished")]
+    public void TryParse_ReturnsTheTypeAndInvoiceIdOfTheEventsThatMoveTheInvoice(string eventType)
     {
-        var invoiceId = AuctionLifecycleMessageParser.TryGetPublishedInvoiceId(
-            "AuctionPublished", Envelope("AuctionPublished", InvoiceId));
+        var message = AuctionLifecycleMessageParser.TryParse(eventType, Envelope(eventType, InvoiceId));
 
-        Assert.Equal(InvoiceId, invoiceId);
+        Assert.Equal(new AuctionLifecycleMessage(eventType, InvoiceId), message);
     }
 
     [Fact]
-    public void TryGetPublishedInvoiceId_FallsBackToBodyEventTypeWhenHeaderIsMissing()
+    public void TryParse_FallsBackToBodyEventTypeWhenHeaderIsMissing()
     {
-        var invoiceId = AuctionLifecycleMessageParser.TryGetPublishedInvoiceId(
-            null, Envelope("AuctionPublished", InvoiceId));
+        var message = AuctionLifecycleMessageParser.TryParse(
+            null, Envelope("AuctionRejected", InvoiceId));
 
-        Assert.Equal(InvoiceId, invoiceId);
+        Assert.Equal(new AuctionLifecycleMessage("AuctionRejected", InvoiceId), message);
     }
 
     [Theory]
@@ -29,55 +31,55 @@ public sealed class AuctionLifecycleMessageParserTests
     [InlineData("PartitionAdded")]
     [InlineData("AuctionFullyFunded")]
     [InlineData("AuctionClosed")]
-    public void TryGetPublishedInvoiceId_IgnoresOtherEventTypesFromTheHeader(string eventType)
+    public void TryParse_IgnoresOtherEventTypesFromTheHeader(string eventType)
     {
-        var invoiceId = AuctionLifecycleMessageParser.TryGetPublishedInvoiceId(eventType, "no es json");
+        var message = AuctionLifecycleMessageParser.TryParse(eventType, "no es json");
 
-        Assert.Null(invoiceId);
+        Assert.Null(message);
     }
 
     [Fact]
-    public void TryGetPublishedInvoiceId_IgnoresOtherEventTypesFromTheBody()
+    public void TryParse_IgnoresOtherEventTypesFromTheBody()
     {
-        var invoiceId = AuctionLifecycleMessageParser.TryGetPublishedInvoiceId(
+        var message = AuctionLifecycleMessageParser.TryParse(
             null, Envelope("PartitionAdded", InvoiceId));
 
-        Assert.Null(invoiceId);
+        Assert.Null(message);
     }
 
     [Theory]
     [InlineData("")]
     [InlineData("no es json")]
     [InlineData("[]")]
-    public void TryGetPublishedInvoiceId_RejectsBodiesThatAreNotAJsonObject(string body)
+    public void TryParse_RejectsBodiesThatAreNotAJsonObject(string body)
     {
         Assert.Throws<InvalidAuctionLifecycleMessageException>(
-            () => AuctionLifecycleMessageParser.TryGetPublishedInvoiceId("AuctionPublished", body));
+            () => AuctionLifecycleMessageParser.TryParse("AuctionPublished", body));
     }
 
     [Fact]
-    public void TryGetPublishedInvoiceId_RejectsUnsupportedSchemaVersion()
+    public void TryParse_RejectsUnsupportedSchemaVersion()
     {
         var body = Envelope("AuctionPublished", InvoiceId, schemaVersion: 2);
 
         Assert.Throws<InvalidAuctionLifecycleMessageException>(
-            () => AuctionLifecycleMessageParser.TryGetPublishedInvoiceId("AuctionPublished", body));
+            () => AuctionLifecycleMessageParser.TryParse("AuctionPublished", body));
     }
 
     [Fact]
-    public void TryGetPublishedInvoiceId_RejectsInvoiceIdThatIsNotAUuid()
+    public void TryParse_RejectsInvoiceIdThatIsNotAUuid()
     {
         var body = Envelope("AuctionPublished", "no-es-uuid");
 
         Assert.Throws<InvalidAuctionLifecycleMessageException>(
-            () => AuctionLifecycleMessageParser.TryGetPublishedInvoiceId("AuctionPublished", body));
+            () => AuctionLifecycleMessageParser.TryParse("AuctionPublished", body));
     }
 
     [Fact]
-    public void TryGetPublishedInvoiceId_RejectsMessageWithoutEventTypeAnywhere()
+    public void TryParse_RejectsMessageWithoutEventTypeAnywhere()
     {
         Assert.Throws<InvalidAuctionLifecycleMessageException>(
-            () => AuctionLifecycleMessageParser.TryGetPublishedInvoiceId(null, "{\"schemaVersion\":1}"));
+            () => AuctionLifecycleMessageParser.TryParse(null, "{\"schemaVersion\":1}"));
     }
 
     private static string Envelope(string eventType, string invoiceId, int schemaVersion = 1)

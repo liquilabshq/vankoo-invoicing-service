@@ -36,4 +36,57 @@ public sealed class InvoicePublicationTests
 
         Assert.Throws<InvalidInvoiceStateException>(invoice.MarkPublished);
     }
+
+    [Fact]
+    public void MarkPublished_MovesApprovedInvoiceToPublished()
+    {
+        var invoice = InvoiceTestData.CreateConsistencyPassed();
+        invoice.MarkApproved();
+
+        invoice.MarkPublished();
+
+        Assert.Equal(InvoiceStatus.PUBLISHED, invoice.Status);
+    }
+
+    [Fact]
+    public void MarkApproved_MovesConsistencyPassedInvoiceToApproved()
+    {
+        var invoice = InvoiceTestData.CreateConsistencyPassed();
+
+        invoice.MarkApproved();
+
+        Assert.Equal(InvoiceStatus.APPROVED, invoice.Status);
+    }
+
+    [Fact]
+    public void MarkApproved_RejectsInvoiceThatHasNotPassedConsistency()
+    {
+        var invoice = InvoiceTestData.CreateUploaded();
+
+        var error = Assert.Throws<InvalidInvoiceStateException>(invoice.MarkApproved);
+
+        Assert.Equal(InvoiceStatus.UPLOADED, error.CurrentStatus);
+    }
+
+    [Fact]
+    public void MarkNotEligibleByRisk_MovesConsistencyPassedInvoiceToNotEligible()
+    {
+        var invoice = InvoiceTestData.CreateConsistencyPassed();
+
+        invoice.MarkNotEligibleByRisk();
+
+        Assert.Equal(InvoiceStatus.NOT_ELIGIBLE, invoice.Status);
+    }
+
+    [Fact]
+    public void MarkNotEligibleByRisk_RejectsInvoiceTheRiskServiceAlreadyApproved()
+    {
+        var invoice = InvoiceTestData.CreateConsistencyPassed();
+        invoice.MarkApproved();
+
+        var error = Assert.Throws<InvalidInvoiceStateException>(invoice.MarkNotEligibleByRisk);
+
+        Assert.Equal(InvoiceStatus.APPROVED, error.CurrentStatus);
+        Assert.Equal(InvoiceStatus.APPROVED, invoice.Status);
+    }
 }

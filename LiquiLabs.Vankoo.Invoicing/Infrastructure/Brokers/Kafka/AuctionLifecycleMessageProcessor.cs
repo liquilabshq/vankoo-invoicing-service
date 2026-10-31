@@ -1,5 +1,7 @@
 using System.Text;
 using Confluent.Kafka;
+using LiquiLabs.Vankoo.Invoicing.Application.Commands.InvoicePublication.MarkInvoiceAsApproved;
+using LiquiLabs.Vankoo.Invoicing.Application.Commands.InvoicePublication.MarkInvoiceAsNotEligible;
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.InvoicePublication.MarkInvoiceAsPublished;
 using LiquiLabs.Vankoo.Invoicing.Domain.Exceptions;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Configuration.Settings;
@@ -29,10 +31,10 @@ public sealed class AuctionLifecycleMessageProcessor
 
     public async Task ProcessAsync(ConsumeResult<string?, string> result, CancellationToken cancellationToken)
     {
-        string? invoiceId;
+        AuctionLifecycleMessage? message;
         try
         {
-            invoiceId = AuctionLifecycleMessageParser.TryGetPublishedInvoiceId(
+            message = AuctionLifecycleMessageParser.TryParse(
                 ReadEventTypeHeader(result.Message), result.Message.Value);
         }
         catch (InvalidAuctionLifecycleMessageException ex)
@@ -44,8 +46,10 @@ public sealed class AuctionLifecycleMessageProcessor
             return;
         }
 
-        if (invoiceId is null)
+        if (message is null)
             return;
+
+        var (eventType, invoiceId) = message;
 
         Exception? lastError = null;
         for (var attempt = 1; attempt <= Math.Max(1, _settings.MaxAttempts); attempt++)
@@ -54,24 +58,24 @@ public sealed class AuctionLifecycleMessageProcessor
             {
                 using var scope = _scopeFactory.CreateScope();
                 var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-                await mediator.Send(new MarkInvoiceAsPublishedCommand(invoiceId), cancellationToken);
+                await mediator.Send(CommandFor(message), cancellationToken);
 
-                _logger.LogInformation("Factura {InvoiceId} marcada como PUBLISHED por AuctionPublished.", invoiceId);
+                _logger.LogInformation("Factura {InvoiceId} actualizada por {EventType}.", invoiceId, eventType);
                 return;
             }
             catch (InvoiceNotFoundException)
             {
                 // La MYPE pudo borrar la factura, o el tema se relee desde el principio con un grupo
                 // nuevo: reintentar no la hará aparecer, y no hay nada que revisar en la DLQ.
-                _logger.LogWarning("AuctionPublished de la factura {InvoiceId}, que ya no existe; se salta.", invoiceId);
+                _logger.LogWarning("{EventType} de la factura {InvoiceId}, que ya no existe; se salta.", eventType, invoiceId);
                 return;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 lastError = ex;
                 _logger.LogWarning(ex,
-                    "No se pudo procesar AuctionPublished de la factura {InvoiceId}. Intento {Attempt}/{MaxAttempts}",
-                    invoiceId, attempt, _settings.MaxAttempts);
+                    "No se pudo procesar {EventType} de la factura {InvoiceId}. Intento {Attempt}/{MaxAttempts}",
+                    eventType, invoiceId, attempt, _settings.MaxAttempts);
 
                 if (attempt < _settings.MaxAttempts)
                     await Task.Delay(TimeSpan.FromMilliseconds(Math.Max(0, _settings.RetryDelayMs)), cancellationToken);
@@ -79,8 +83,8 @@ public sealed class AuctionLifecycleMessageProcessor
         }
 
         _logger.LogError(lastError,
-            "AuctionPublished de la factura {InvoiceId} agotó {MaxAttempts} intentos; se envía a DLQ.",
-            invoiceId, _settings.MaxAttempts);
+            "{EventType} de la factura {InvoiceId} agotó {MaxAttempts} intentos; se envía a DLQ.",
+            eventType, invoiceId, _settings.MaxAttempts);
         await DeadLetterAsync(result, lastError!, cancellationToken);
     }
 
@@ -104,6 +108,13 @@ public sealed class AuctionLifecycleMessageProcessor
             }
         }
     }
+
+    private static IRequest<Unit> CommandFor(AuctionLifecycleMessage message) => message.EventType switch
+    {
+        AuctionLifecycleMessageParser.AuctionEvaluatedEventType => new MarkInvoiceAsApprovedCommand(message.InvoiceId),
+        AuctionLifecycleMessageParser.AuctionRejectedEventType => new MarkInvoiceAsNotEligibleCommand(message.InvoiceId),
+        _ => new MarkInvoiceAsPublishedCommand(message.InvoiceId)
+    };
 
     private static string? ReadEventTypeHeader(Message<string?, string> message)
         => message.Headers.TryGetLastBytes(AuctionLifecycleMessageParser.EventTypeHeader, out var bytes)

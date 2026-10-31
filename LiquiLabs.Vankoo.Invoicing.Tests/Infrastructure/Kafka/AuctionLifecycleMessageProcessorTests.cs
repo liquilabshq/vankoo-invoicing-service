@@ -43,6 +43,39 @@ public sealed class AuctionLifecycleMessageProcessorTests : IDisposable
         Assert.Empty(deadLetters.Published);
     }
 
+    [Theory]
+    [InlineData("AuctionEvaluated", InvoiceStatus.APPROVED)]
+    [InlineData("AuctionRejected", InvoiceStatus.NOT_ELIGIBLE)]
+    public async Task ProcessAsync_RecordsTheRiskOutcomeOnTheInvoice(string eventType, InvoiceStatus expected)
+    {
+        var invoiceId = await SeedConsistentInvoiceAsync();
+        var deadLetters = new RecordingDeadLetterPublisher();
+
+        await CreateProcessor(deadLetters).ProcessAsync(
+            AuctionMessages.Event(eventType, invoiceId), CancellationToken.None);
+
+        var stored = await _host.Invoices.GetByIdAsync(InvoiceId.Of(invoiceId));
+        Assert.Equal(expected, stored!.Status);
+        Assert.Empty(deadLetters.Published);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_FollowsAnAuctionFromEvaluationToPublication()
+    {
+        var invoiceId = await SeedConsistentInvoiceAsync();
+        var deadLetters = new RecordingDeadLetterPublisher();
+        var processor = CreateProcessor(deadLetters);
+
+        await processor.ProcessAsync(AuctionMessages.Event("AuctionEvaluated", invoiceId, offset: 0), CancellationToken.None);
+        await processor.ProcessAsync(AuctionMessages.Event("AuctionPublished", invoiceId, offset: 1), CancellationToken.None);
+        // Una relectura del tema vuelve a entregar la evaluación con la factura ya publicada.
+        await processor.ProcessAsync(AuctionMessages.Event("AuctionEvaluated", invoiceId, offset: 0), CancellationToken.None);
+
+        var stored = await _host.Invoices.GetByIdAsync(InvoiceId.Of(invoiceId));
+        Assert.Equal(InvoiceStatus.PUBLISHED, stored!.Status);
+        Assert.Empty(deadLetters.Published);
+    }
+
     [Fact]
     public async Task ProcessAsync_UsesTheBodyEventTypeWhenTheHeaderIsMissing()
     {

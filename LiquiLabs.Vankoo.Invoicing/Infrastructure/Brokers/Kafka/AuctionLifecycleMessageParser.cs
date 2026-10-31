@@ -4,29 +4,36 @@ namespace LiquiLabs.Vankoo.Invoicing.Infrastructure.Brokers.Kafka;
 
 public static class AuctionLifecycleMessageParser
 {
+    public const string AuctionEvaluatedEventType = "AuctionEvaluated";
+    public const string AuctionRejectedEventType = "AuctionRejected";
     public const string AuctionPublishedEventType = "AuctionPublished";
     public const string EventTypeHeader = "eventType";
 
     private const int SupportedSchemaVersion = 1;
 
+    private static readonly HashSet<string> ConsumedEventTypes =
+        [AuctionEvaluatedEventType, AuctionRejectedEventType, AuctionPublishedEventType];
+
     /// <summary>
-    /// Devuelve el invoiceId si el mensaje es un AuctionPublished, o null si es otro evento
-    /// del ciclo de vida de la subasta (que Invoicing no consume). Lanza si el mensaje es inválido.
+    /// Devuelve el tipo y el invoiceId si el mensaje es uno de los eventos que mueven la factura
+    /// (AuctionEvaluated, AuctionRejected o AuctionPublished), o null si es otro evento del ciclo
+    /// de vida de la subasta (que Invoicing no consume). Lanza si el mensaje es inválido.
     /// </summary>
-    public static string? TryGetPublishedInvoiceId(string? eventTypeHeader, string body)
+    public static AuctionLifecycleMessage? TryParse(string? eventTypeHeader, string body)
     {
-        if (!string.IsNullOrWhiteSpace(eventTypeHeader) && eventTypeHeader != AuctionPublishedEventType)
+        if (!string.IsNullOrWhiteSpace(eventTypeHeader) && !ConsumedEventTypes.Contains(eventTypeHeader))
             return null;
 
         using var document = ParseObject(body);
         var root = document.RootElement;
 
-        if (string.IsNullOrWhiteSpace(eventTypeHeader))
+        var eventType = eventTypeHeader;
+        if (string.IsNullOrWhiteSpace(eventType))
         {
-            var bodyEventType = ReadString(root, "eventType")
-                                ?? throw new InvalidAuctionLifecycleMessageException(
-                                    "El mensaje no trae eventType en la cabecera ni en el cuerpo.");
-            if (bodyEventType != AuctionPublishedEventType)
+            eventType = ReadString(root, "eventType")
+                        ?? throw new InvalidAuctionLifecycleMessageException(
+                            "El mensaje no trae eventType en la cabecera ni en el cuerpo.");
+            if (!ConsumedEventTypes.Contains(eventType))
                 return null;
         }
 
@@ -39,13 +46,13 @@ public static class AuctionLifecycleMessageParser
         }
 
         if (!root.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
-            throw new InvalidAuctionLifecycleMessageException("AuctionPublished no trae el objeto data.");
+            throw new InvalidAuctionLifecycleMessageException($"{eventType} no trae el objeto data.");
 
         var invoiceId = ReadString(data, "invoiceId");
         if (!Guid.TryParse(invoiceId, out _))
             throw new InvalidAuctionLifecycleMessageException("data.invoiceId no es un UUID válido.");
 
-        return invoiceId;
+        return new AuctionLifecycleMessage(eventType, invoiceId!);
     }
 
     private static JsonDocument ParseObject(string body)
@@ -77,6 +84,8 @@ public static class AuctionLifecycleMessageParser
             ? property.GetString()
             : null;
 }
+
+public sealed record AuctionLifecycleMessage(string EventType, string InvoiceId);
 
 public sealed class InvalidAuctionLifecycleMessageException : Exception
 {
