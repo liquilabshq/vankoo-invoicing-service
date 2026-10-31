@@ -1,6 +1,7 @@
 using System.Text;
 using Confluent.Kafka;
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.InvoicePublication.MarkInvoiceAsPublished;
+using LiquiLabs.Vankoo.Invoicing.Domain.Exceptions;
 using LiquiLabs.Vankoo.Invoicing.Infrastructure.Configuration.Settings;
 using MediatR;
 using Microsoft.Extensions.Options;
@@ -56,6 +57,13 @@ public sealed class AuctionLifecycleMessageProcessor
                 await mediator.Send(new MarkInvoiceAsPublishedCommand(invoiceId), cancellationToken);
 
                 _logger.LogInformation("Factura {InvoiceId} marcada como PUBLISHED por AuctionPublished.", invoiceId);
+                return;
+            }
+            catch (InvoiceNotFoundException)
+            {
+                // La MYPE pudo borrar la factura, o el tema se relee desde el principio con un grupo
+                // nuevo: reintentar no la hará aparecer, y no hay nada que revisar en la DLQ.
+                _logger.LogWarning("AuctionPublished de la factura {InvoiceId}, que ya no existe; se salta.", invoiceId);
                 return;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)

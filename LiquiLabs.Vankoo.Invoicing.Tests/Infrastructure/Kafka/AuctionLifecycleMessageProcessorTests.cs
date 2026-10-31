@@ -86,16 +86,14 @@ public sealed class AuctionLifecycleMessageProcessorTests : IDisposable
     }
 
     [Fact]
-    public async Task ProcessAsync_SendsToTheDeadLetterQueueWhenTheInvoiceDoesNotExist()
+    public async Task ProcessAsync_SkipsEventsOfInvoicesThatNoLongerExist()
     {
         var deadLetters = new RecordingDeadLetterPublisher();
         var message = AuctionMessages.Event("AuctionPublished", Guid.NewGuid().ToString(), offset: 7);
 
         await CreateProcessor(deadLetters).ProcessAsync(message, CancellationToken.None);
 
-        var published = Assert.Single(deadLetters.Published);
-        Assert.Same(message, published.Original);
-        Assert.IsType<InvoiceNotFoundException>(published.Error);
+        Assert.Empty(deadLetters.Published);
     }
 
     [Fact]
