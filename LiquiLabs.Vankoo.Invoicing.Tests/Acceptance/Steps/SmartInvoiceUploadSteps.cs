@@ -1,3 +1,4 @@
+using LiquiLabs.Vankoo.Invoicing.Application.Commands.ConfirmInvoiceReview;
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.OcrProcessing.ProcessOcrSynchronously;
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.RecordMypeKycStatus;
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.UploadInvoice;
@@ -159,6 +160,36 @@ public sealed class SmartInvoiceUploadSteps
         Assert.False(_details.EligibleForFunding);
         Assert.Equal(nameof(IntegrationEventPublicationStatus.NOT_APPLICABLE), _details.IntegrationEventStatus);
         Assert.Empty(_host.EventBus.Published.OfType<InvoiceEligibleForFundingIntegrationEvent>());
+    }
+
+    // --- US05: corrección manual de los datos extraídos ---------------------------------
+
+    [When("the business owner confirms the invoice data with a total of {decimal}")]
+    public async Task WhenTheBusinessOwnerConfirmsTheInvoiceData(decimal total)
+    {
+        Assert.NotNull(_invoiceId);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+
+        // La MYPE revisa su PDF y confirma, o corrige, lo que el OCR leyó con dudas.
+        _details = await _host.SendAsync(new ConfirmInvoiceReviewCommand(
+            _invoiceId, _mypeId, "E001", "4",
+            today.AddDays(-5), today.AddDays(60),
+            IssuerRuc, PayerRuc,
+            Subtotal: 1398.30m, Tax: 251.70m, Total: total));
+    }
+
+    [Then("the invoice keeps the confirmed total of {decimal}")]
+    public void ThenTheInvoiceKeepsTheConfirmedTotal(decimal total)
+    {
+        Assert.NotNull(_details);
+        Assert.Equal(total, _details.Total);
+    }
+
+    [Then("the invoice is ready to be sent to the auction")]
+    public void ThenTheInvoiceIsReadyToBeSentToTheAuction()
+    {
+        Assert.NotNull(_details);
+        Assert.True(_details.EligibleForFunding);
     }
 
     private OcrExtractionResult BuildExtraction(
