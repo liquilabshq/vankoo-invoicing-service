@@ -7,17 +7,22 @@ public static class AuctionLifecycleMessageParser
     public const string AuctionEvaluatedEventType = "AuctionEvaluated";
     public const string AuctionRejectedEventType = "AuctionRejected";
     public const string AuctionPublishedEventType = "AuctionPublished";
+    public const string AuctionFullyFundedEventType = "AuctionFullyFunded";
     public const string EventTypeHeader = "eventType";
 
     private const int SupportedSchemaVersion = 1;
 
     private static readonly HashSet<string> ConsumedEventTypes =
-        [AuctionEvaluatedEventType, AuctionRejectedEventType, AuctionPublishedEventType];
+        [AuctionEvaluatedEventType, AuctionRejectedEventType, AuctionPublishedEventType, AuctionFullyFundedEventType];
 
     /// <summary>
     /// Devuelve el tipo y el invoiceId si el mensaje es uno de los eventos que mueven la factura
-    /// (AuctionEvaluated, AuctionRejected o AuctionPublished), o null si es otro evento del ciclo
-    /// de vida de la subasta (que Invoicing no consume). Lanza si el mensaje es inválido.
+    /// (AuctionEvaluated, AuctionRejected, AuctionPublished o AuctionFullyFunded), o null si es otro
+    /// evento del ciclo de vida de la subasta (que Invoicing no consume). Lanza si el mensaje es
+    /// inválido.
+    ///
+    /// AuctionFullyFunded trae invoiceId como campo opcional del contrato v1: los publicados antes
+    /// de que Investment lo añadiera llegan con data vacío y se ignoran (null), no van a la DLQ.
     /// </summary>
     public static AuctionLifecycleMessage? TryParse(string? eventTypeHeader, string body)
     {
@@ -49,6 +54,8 @@ public static class AuctionLifecycleMessageParser
             throw new InvalidAuctionLifecycleMessageException($"{eventType} no trae el objeto data.");
 
         var invoiceId = ReadString(data, "invoiceId");
+        if (invoiceId is null && eventType == AuctionFullyFundedEventType)
+            return null;
         if (!Guid.TryParse(invoiceId, out _))
             throw new InvalidAuctionLifecycleMessageException("data.invoiceId no es un UUID válido.");
 

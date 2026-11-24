@@ -43,6 +43,22 @@ public sealed class AuctionLifecycleMessageProcessorTests : IDisposable
         Assert.Empty(deadLetters.Published);
     }
 
+    [Fact]
+    public async Task ProcessAsync_MarksThePublishedInvoiceAsFundedOnAuctionFullyFunded()
+    {
+        var invoiceId = await SeedConsistentInvoiceAsync();
+        var deadLetters = new RecordingDeadLetterPublisher();
+        var processor = CreateProcessor(deadLetters);
+
+        await processor.ProcessAsync(AuctionMessages.Event("AuctionPublished", invoiceId, offset: 0), CancellationToken.None);
+        await processor.ProcessAsync(AuctionMessages.Event("AuctionFullyFunded", invoiceId, offset: 1), CancellationToken.None);
+        await processor.ProcessAsync(AuctionMessages.Event("AuctionFullyFunded", invoiceId, offset: 2), CancellationToken.None);
+
+        var stored = await _host.Invoices.GetByIdAsync(InvoiceId.Of(invoiceId));
+        Assert.Equal(InvoiceStatus.FUNDED, stored!.Status);
+        Assert.Empty(deadLetters.Published);
+    }
+
     [Theory]
     [InlineData("AuctionEvaluated", InvoiceStatus.APPROVED)]
     [InlineData("AuctionRejected", InvoiceStatus.NOT_ELIGIBLE)]

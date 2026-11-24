@@ -20,8 +20,9 @@ public sealed class MarkInvoiceAsPublishedCommandHandler : IRequestHandler<MarkI
         var invoice = await _invoiceRepository.GetByIdAsync(invoiceId, cancellationToken)
                       ?? throw new InvoiceNotFoundException(invoiceId.Value);
 
-        // Kafka entrega al menos una vez: un AuctionPublished repetido no debe fallar.
-        if (invoice.Status == InvoiceStatus.PUBLISHED)
+        // Kafka entrega al menos una vez: un AuctionPublished repetido no debe fallar, tampoco si
+        // llega cuando la factura ya se fondeó (el tema se relee desde el principio).
+        if (invoice.Status is InvoiceStatus.PUBLISHED or InvoiceStatus.FUNDED)
             return Unit.Value;
 
         invoice.MarkPublished();

@@ -32,6 +32,12 @@ public enum InvoiceStatus
     /// <summary>La factura es legible pero no es elegible para financiamiento</summary>
     NOT_ELIGIBLE = 10,
 
+    /// <summary>
+    /// La subasta llegó a su objetivo (Investment emitió AuctionFullyFunded) y Finance abonó el
+    /// adelanto a la billetera de la MYPE. Es el final feliz del recorrido de la factura.
+    /// </summary>
+    FUNDED = 11,
+
     /// <summary>Rechazada en cualquier paso del proceso</summary>
     REJECTED = 99
 }
