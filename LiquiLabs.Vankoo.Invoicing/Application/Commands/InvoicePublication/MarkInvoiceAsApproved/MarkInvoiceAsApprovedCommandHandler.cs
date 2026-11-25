@@ -22,7 +22,7 @@ public sealed class MarkInvoiceAsApprovedCommandHandler : IRequestHandler<MarkIn
 
         // Kafka entrega al menos una vez, y riesgo puede volver a evaluar: si la factura ya está
         // aprobada o ya salió a subasta, no hay nada que hacer.
-        if (invoice.Status is InvoiceStatus.APPROVED or InvoiceStatus.PUBLISHED)
+        if (invoice.Status is InvoiceStatus.APPROVED or InvoiceStatus.PUBLISHED or InvoiceStatus.FUNDED)
             return Unit.Value;
 
         invoice.MarkApproved();

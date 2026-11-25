@@ -192,6 +192,19 @@ public sealed class Invoice
         UpdatedAt = DateTime.UtcNow;
     }
 
+    /// <summary>
+    /// La subasta de esta factura se fondeó (AuctionFullyFunded). Solo desde PUBLISHED: el tema de
+    /// Kafka va con la subasta como clave, así que AuctionPublished siempre llega antes.
+    /// </summary>
+    public void MarkFunded()
+    {
+        if (Status != InvoiceStatus.PUBLISHED)
+            throw new InvalidInvoiceStateException(Status, InvoiceStatus.PUBLISHED, "mark as funded");
+
+        Status = InvoiceStatus.FUNDED;
+        UpdatedAt = DateTime.UtcNow;
+    }
+
     public void MarkIntegrationEventPublished()
     {
         IntegrationEventPublicationStatus = IntegrationEventPublicationStatus.PUBLISHED;

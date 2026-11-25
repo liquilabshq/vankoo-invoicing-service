@@ -162,6 +162,7 @@ Todas las rutas sobre facturas (subir, listar, ver, descargar, borrar y releer c
 | `investment.auction-lifecycle.v1` | `invoicing-auction-lifecycle-v1` | `AuctionEvaluated` | `CONSISTENCY_PASSED` → `APPROVED`: riesgo la calificó y le toca a la MYPE aceptar la oferta |
 | `investment.auction-lifecycle.v1` | `invoicing-auction-lifecycle-v1` | `AuctionRejected` | `CONSISTENCY_PASSED` → `NOT_ELIGIBLE`: riesgo no la financia. El motivo lo guarda y lo muestra Investment |
 | `investment.auction-lifecycle.v1` | `invoicing-auction-lifecycle-v1` | `AuctionPublished` | `APPROVED` (o `CONSISTENCY_PASSED`) → `PUBLISHED`: ya está con los inversionistas |
+| `investment.auction-lifecycle.v1` | `invoicing-auction-lifecycle-v1` | `AuctionFullyFunded` | `PUBLISHED` → `FUNDED`: los inversionistas cubrieron el objetivo y Finance abona el adelanto a la MYPE. Usa `data.invoiceId`, opcional en v1; los eventos anteriores sin él se ignoran |
 
 Con esto el filtro `status` de `GET /invoices` encuentra las facturas aprobadas, en subasta y no elegibles. El contrato de los eventos de subasta es de Investment (`docs/contracts/auction-lifecycle/v1` en su repo); Invoicing ignora los demás tipos.
 

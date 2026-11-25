@@ -1,6 +1,7 @@
 using System.Text;
 using Confluent.Kafka;
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.InvoicePublication.MarkInvoiceAsApproved;
+using LiquiLabs.Vankoo.Invoicing.Application.Commands.InvoicePublication.MarkInvoiceAsFunded;
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.InvoicePublication.MarkInvoiceAsNotEligible;
 using LiquiLabs.Vankoo.Invoicing.Application.Commands.InvoicePublication.MarkInvoiceAsPublished;
 using LiquiLabs.Vankoo.Invoicing.Domain.Exceptions;
@@ -113,6 +114,7 @@ public sealed class AuctionLifecycleMessageProcessor
     {
         AuctionLifecycleMessageParser.AuctionEvaluatedEventType => new MarkInvoiceAsApprovedCommand(message.InvoiceId),
         AuctionLifecycleMessageParser.AuctionRejectedEventType => new MarkInvoiceAsNotEligibleCommand(message.InvoiceId),
+        AuctionLifecycleMessageParser.AuctionFullyFundedEventType => new MarkInvoiceAsFundedCommand(message.InvoiceId),
         _ => new MarkInvoiceAsPublishedCommand(message.InvoiceId)
     };
 

@@ -10,6 +10,7 @@ public sealed class AuctionLifecycleMessageParserTests
     [InlineData("AuctionEvaluated")]
     [InlineData("AuctionRejected")]
     [InlineData("AuctionPublished")]
+    [InlineData("AuctionFullyFunded")]
     public void TryParse_ReturnsTheTypeAndInvoiceIdOfTheEventsThatMoveTheInvoice(string eventType)
     {
         var message = AuctionLifecycleMessageParser.TryParse(eventType, Envelope(eventType, InvoiceId));
@@ -29,13 +30,23 @@ public sealed class AuctionLifecycleMessageParserTests
     [Theory]
     [InlineData("AuctionCreated")]
     [InlineData("PartitionAdded")]
-    [InlineData("AuctionFullyFunded")]
     [InlineData("AuctionClosed")]
     public void TryParse_IgnoresOtherEventTypesFromTheHeader(string eventType)
     {
         var message = AuctionLifecycleMessageParser.TryParse(eventType, "no es json");
 
         Assert.Null(message);
+    }
+
+    [Fact]
+    public void TryParse_IgnoresAFullyFundedPublishedBeforeItCarriedTheInvoice()
+    {
+        const string body = """
+            {"eventId":"10000000-0000-4000-8000-000000000004","eventType":"AuctionFullyFunded","schemaVersion":1,
+             "aggregateId":"20000000-0000-4000-8000-000000000001","sequence":4,"occurredAt":"2026-09-16T18:00:00Z","data":{}}
+            """;
+
+        Assert.Null(AuctionLifecycleMessageParser.TryParse("AuctionFullyFunded", body));
     }
 
     [Fact]
